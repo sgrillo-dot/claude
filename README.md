@@ -75,6 +75,16 @@ Le icone sono disegnate da zero. I sorgenti modificabili sono in `assets/source/
 - `splash-icon.png`: schermata di avvio;
 - `favicon.png`: versione web.
 
+## Suoni
+
+Effetti chiptune sintetizzati da zero, senza campioni esterni: `assets/source/sounds.py` li genera in `assets/sounds/`.
+
+```bash
+python3 assets/source/sounds.py
+```
+
+Si spengono e riaccendono col pulsante 🔊 in alto. Rispettano l'interruttore silenzioso dell'iPhone e non interrompono la musica di altre app.
+
 ## Note
 
 Gioco originale ispirato all'idea dei simulatori di adolescenti anni '90. Codice, testi e grafica sono scritti da zero.

@@ -4,9 +4,11 @@ import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, ViewStyle
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StatDelta } from '../game/engine';
+import { play } from './sound';
 import { border, colors, hardShadow, radius, STAT_META } from './theme';
 
 export function tap(kind: 'light' | 'success' | 'warning' = 'light') {
+  if (kind === 'light') play('tap');
   if (Platform.OS === 'web') return;
   if (kind === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   else Haptics.notificationAsync(kind === 'success' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);

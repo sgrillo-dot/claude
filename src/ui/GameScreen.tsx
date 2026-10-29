@@ -49,6 +49,16 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
         <View style={[styles.pill, { backgroundColor: state.energia < 25 ? '#FFE0E3' : '#FFF0DC' }]}>
           <Text style={styles.pillText}>⚡ {state.energia}</Text>
         </View>
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityLabel="Suoni"
+          accessibilityState={{ checked: game.soundOn }}
+          hitSlop={8}
+          onPress={game.toggleSound}
+          style={[styles.pill, styles.soundPill]}
+        >
+          <Text style={styles.pillText}>{game.soundOn ? '🔊' : '🔇'}</Text>
+        </Pressable>
       </View>
 
       <ScrollView ref={scroll} style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -137,6 +147,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  soundPill: { backgroundColor: colors.card, paddingHorizontal: 8 },
   pillText: { fontSize: 15, fontWeight: '900', color: colors.ink, fontVariant: ['tabular-nums'] },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 32, maxWidth: 640, width: '100%', alignSelf: 'center' },
