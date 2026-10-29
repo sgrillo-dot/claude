@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#FFD23F"/>
+  <path d="M512 560 L1612.0 560.0 L1558.2 899.9 Z" fill="#FFC21A"/>
+  <path d="M512 560 L1401.9 1206.6 L1158.6 1449.9 Z" fill="#FFC21A"/>
+  <path d="M512 560 L851.9 1606.2 L512.0 1660.0 Z" fill="#FFC21A"/>
+  <path d="M512 560 L172.1 1606.2 L-134.6 1449.9 Z" fill="#FFC21A"/>
+  <path d="M512 560 L-377.9 1206.6 L-534.2 899.9 Z" fill="#FFC21A"/>
+  <path d="M512 560 L-588.0 560.0 L-534.2 220.1 Z" fill="#FFC21A"/>
+  <path d="M512 560 L-377.9 -86.6 L-134.6 -329.9 Z" fill="#FFC21A"/>
+  <path d="M512 560 L172.1 -486.2 L512.0 -540.0 Z" fill="#FFC21A"/>
+  <path d="M512 560 L851.9 -486.2 L1158.6 -329.9 Z" fill="#FFC21A"/>
+  <path d="M512 560 L1401.9 -86.6 L1558.2 220.1 Z" fill="#FFC21A"/>
+</svg>

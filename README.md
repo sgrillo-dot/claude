@@ -62,7 +62,18 @@ npx eas-cli build --platform ios
 npx eas-cli submit --platform ios
 ```
 
-Prima di pubblicare, cambia `ios.bundleIdentifier` e `android.package` in `app.json` con un identificativo tuo, e sostituisci le icone in `assets/`.
+L'identificativo dell'app è `com.giargiasimulator.app`, sia su iOS che su Android. Dopo il primo caricamento sugli store non si può più cambiare.
+
+Build e numeri di versione sono configurati in `eas.json`: EAS incrementa da solo il numero di build a ogni build di produzione.
+
+## Icone
+
+Le icone sono disegnate da zero. I sorgenti modificabili sono in `assets/source/` (SVG), i PNG usati dall'app in `assets/`:
+
+- `icon.png`: icona iOS, 1024×1024, senza trasparenza;
+- `android-icon-*.png`: icona adattiva Android (primo piano, sfondo, monocromatica);
+- `splash-icon.png`: schermata di avvio;
+- `favicon.png`: versione web.
 
 ## Note
 
