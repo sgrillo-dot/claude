@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatDay } from '../game/calendar';
 import { pendingEvent } from '../game/engine';
+import { choiceLabel } from '../game/events';
 import { GameState } from '../game/types';
 import { Button, DeltaChips, Sheet, tap } from './components';
 import { ActionsScreen } from './screens/ActionsScreen';
@@ -56,7 +57,7 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
           <ActionsScreen tab={tab} state={state} onAct={game.act} />
         ) : null}
         {tab === 'shop' ? (
-          <ShopScreen state={state} onBuy={game.buy} onRepair={game.repair} onTrucca={game.trucca} />
+          <ShopScreen state={state} onBuy={game.buy} onRepair={game.repair} onTrucca={game.trucca} onFillTank={game.fillTank} />
         ) : null}
       </ScrollView>
 
@@ -106,7 +107,7 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
             <Text style={styles.eventTitle}>{event.titolo}</Text>
             <Text style={styles.eventText}>{event.testo(state)}</Text>
             {event.scelte.map((c, i) => (
-              <Button key={c.label} label={c.label} color={i === 0 ? colors.yellow : colors.card} onPress={() => game.choose(i)} />
+              <Button key={i} label={choiceLabel(c, state)} color={i === 0 ? colors.yellow : colors.card} onPress={() => game.choose(i)} />
             ))}
           </>
         ) : null}

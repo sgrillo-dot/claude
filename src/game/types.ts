@@ -1,6 +1,10 @@
 export type Preferenza = 'ragazze' | 'ragazzi' | 'tutti';
 
+export type Genere = 'm' | 'f';
+
 export type StatKey = 'soldi' | 'figo' | 'studio' | 'energia' | 'genitori';
+
+export type Materia = 'italiano' | 'matematica' | 'inglese' | 'storia' | 'scienze' | 'ginnastica';
 
 export type Rng = () => number;
 
@@ -14,6 +18,13 @@ export interface Motorino {
   id: string;
   condizione: number;
   truccato: boolean;
+  benzina: number;
+}
+
+export interface Lavoro {
+  id: string;
+  /** Ultimo giorno in cui hai fatto un turno. */
+  ultimoTurno: number;
 }
 
 export interface LogEntry {
@@ -22,18 +33,21 @@ export interface LogEntry {
 }
 
 export interface GameState {
-  version: 1;
+  version: 2;
   nome: string;
+  genere: Genere;
   preferenza: Preferenza;
   /** Giorno di gioco, parte da 1 (lunedì 14 settembre). */
   day: number;
   soldi: number;
   /** Figosità di base, a cui si sommano vestiti e motorino. */
   figo: number;
+  /** Preparazione generale: conta per interrogazioni e pagella. */
   studio: number;
   energia: number;
   /** Quanto i genitori sono contenti di te. */
   genitori: number;
+  voti: Record<Materia, number>;
   /** Se oggi hai già deciso cosa fare con la scuola. */
   scuolaOggi: boolean;
   assenze: number;
@@ -41,6 +55,7 @@ export interface GameState {
   motorino: Motorino | null;
   partner: Partner | null;
   exPartners: number;
+  lavoro: Lavoro | null;
   /** Ultimo giorno in cui hai chiesto soldi extra ai genitori. */
   richiestaSoldiDay: number;
   pendingEventId: string | null;
@@ -53,7 +68,7 @@ export interface Outcome {
   messages: string[];
 }
 
-export type ItemCategory = 'vestiti' | 'accessori' | 'motorini' | 'bar';
+export type ItemCategory = 'vestiti' | 'accessori' | 'telefoni' | 'motorini' | 'bar';
 
 export interface Item {
   id: string;
@@ -84,7 +99,7 @@ export interface Action {
 }
 
 export interface EventChoice {
-  label: string;
+  label: string | ((s: GameState) => string);
   esito: (s: GameState, rng: Rng) => Outcome;
 }
 

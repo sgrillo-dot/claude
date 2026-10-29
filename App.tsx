@@ -18,7 +18,7 @@ function Root() {
       {!game.loaded ? null : !state ? (
         <StartScreen onStart={game.start} />
       ) : state.finito ? (
-        <PagellaScreen state={state} onRestart={() => game.start(state.nome, state.preferenza)} />
+        <PagellaScreen state={state} onRestart={() => game.start(state.nome, state.genere, state.preferenza)} />
       ) : (
         <GameScreen game={game} state={state} />
       )}

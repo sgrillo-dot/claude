@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { formatDay, LAST_DAY } from '../../game/calendar';
-import { MOTORINI } from '../../game/items';
+import { LAVORI_BY_ID, MOTORINI } from '../../game/items';
 import { figosita, titoloGiargia } from '../../game/state';
 import { GameState } from '../../game/types';
 import { Bar, Button, Card, Chip, Sheet, StatRow } from '../components';
@@ -24,7 +24,7 @@ export function HomeScreen({ state, onReset }: { state: GameState; onReset: () =
           <Text style={styles.heroName} numberOfLines={1}>
             {state.nome}
           </Text>
-          <Text style={styles.heroTitle}>{titoloGiargia(f)}</Text>
+          <Text style={styles.heroTitle}>{titoloGiargia(state)}</Text>
           <View style={styles.heroFigo}>
             <View style={{ flex: 1 }}>
               <Bar value={f} color={colors.yellow} height={14} />
@@ -52,6 +52,8 @@ export function HomeScreen({ state, onReset }: { state: GameState; onReset: () =
               <Text style={styles.tileSub}>
                 {m.condizione === 0 ? 'Rotto! Va riparato' : `Condizioni ${m.condizione}%`}
                 {m.truccato ? ' · truccato' : ''}
+                {'\n'}
+                {m.benzina === 0 ? '⛽ A secco!' : `⛽ Benzina ${m.benzina}%`}
               </Text>
             </>
           ) : (
@@ -79,6 +81,7 @@ export function HomeScreen({ state, onReset }: { state: GameState; onReset: () =
       <View style={styles.chips}>
         <Chip label={`📅 Giorno ${state.day}/${LAST_DAY}`} />
         <Chip label={`🚫 ${state.assenze} assenze`} color={state.assenze > 40 ? '#FFE0E3' : colors.card} />
+        {state.lavoro ? <Chip label={`${LAVORI_BY_ID[state.lavoro.id].emoji} ${LAVORI_BY_ID[state.lavoro.id].nome}`} color="#D8F5E3" /> : null}
         {state.exPartners > 0 ? <Chip label={`💔 ${state.exPartners} ex`} /> : null}
       </View>
 

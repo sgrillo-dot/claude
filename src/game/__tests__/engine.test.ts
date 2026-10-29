@@ -1,8 +1,9 @@
 import { ACTIONS } from '../actions';
-import { formatDay, isDiscoNight, LAST_DAY } from '../calendar';
+import { dayOf, FINE_QUADRIMESTRE, formatDay, isDiscoNight, isSchoolDay, LAST_DAY, NATALE } from '../calendar';
 import {
   actionBlocked,
   buyItem,
+  fillTank,
   pagella,
   performAction,
   repairMotorino,
@@ -11,9 +12,9 @@ import {
   statDeltas,
   truccaMotorino,
 } from '../engine';
-import { EVENTS } from '../events';
+import { choiceLabel, EVENTS, EVENTS_BY_ID } from '../events';
 import { ITEMS } from '../items';
-import { figosita, newGame } from '../state';
+import { figosita, materiaDelGiorno, migrate, newGame, titoloGiargia } from '../state';
 import { GameState } from '../types';
 
 /** Generatore pseudo-casuale deterministico per test ripetibili. */
@@ -26,11 +27,20 @@ function seeded(seed: number) {
 }
 
 const always = (v: number) => () => v;
+const nuovo = (over: Partial<GameState> = {}): GameState => ({ ...newGame('Kevin', 'm', 'ragazze'), ...over });
+const scooter = (over: Partial<NonNullable<GameState['motorino']>> = {}) => ({
+  id: 'scooter_rotto',
+  condizione: 100,
+  truccato: false,
+  benzina: 100,
+  ...over,
+});
 
 describe('calendario', () => {
   it('parte da lunedì 14 settembre e finisce a giugno', () => {
     expect(formatDay(1)).toBe('Lun 14 set');
     expect(formatDay(LAST_DAY)).toBe('Dom 6 giu');
+    expect(formatDay(NATALE)).toBe('Ven 25 dic');
   });
 
   it('la disco apre solo venerdì e sabato', () => {
@@ -39,11 +49,54 @@ describe('calendario', () => {
     expect(isDiscoNight(7)).toBe(false);
     expect(isDiscoNight(1)).toBe(false);
   });
+
+  it('nelle vacanze non c’è scuola', () => {
+    expect(isSchoolDay(dayOf(2026, 12, 28))).toBe(false);
+    expect(isSchoolDay(dayOf(2026, 12, 8))).toBe(false);
+    expect(isSchoolDay(dayOf(2027, 1, 7))).toBe(true);
+    expect(actionBlocked(nuovo({ day: dayOf(2026, 12, 28) }), 'scuola_segui')).toMatch(/Vacanze di Natale/);
+  });
+});
+
+describe('genere', () => {
+  it('i testi si adattano al genere', () => {
+    const m = nuovo({ energia: 0 });
+    const f = { ...m, genere: 'f' as const };
+    expect(actionBlocked(m, 'volantini')).toBe('Sei troppo stanco');
+    expect(actionBlocked(f, 'volantini')).toBe('Sei troppo stanca');
+    expect(titoloGiargia(m)).toBe('Sfigato cosmico');
+    expect(titoloGiargia(f)).toBe('Sfigata cosmica');
+    expect(sleep(f, always(0.99)).messages[0]).toMatch(/andata a scuola/);
+  });
+
+  it('anche le scelte degli eventi', () => {
+    const vigile = EVENTS.find((e) => e.id === 'vigile')!;
+    expect(choiceLabel(vigile.scelte[1], nuovo())).toBe('Faccio il simpatico');
+    expect(choiceLabel(vigile.scelte[1], nuovo({ genere: 'f' }))).toBe('Faccio la simpatica');
+  });
+});
+
+describe('salvataggi', () => {
+  it('converte un salvataggio della prima versione', () => {
+    const { genere, voti, lavoro, ...rest } = nuovo({ motorino: scooter() });
+    const vecchio = { ...rest, version: 1, motorino: { id: 'scooter_rotto', condizione: 80, truccato: false } };
+    const s = migrate(JSON.parse(JSON.stringify(vecchio)))!;
+    expect(s.version).toBe(2);
+    expect(s.genere).toBe('m');
+    expect(s.voti.matematica).toBe(6);
+    expect(s.lavoro).toBeNull();
+    expect(s.motorino?.benzina).toBe(100);
+  });
+
+  it('scarta dati non validi', () => {
+    expect(migrate(null)).toBeNull();
+    expect(migrate({ version: 99 })).toBeNull();
+  });
 });
 
 describe('azioni', () => {
   it('scala energia e soldi e applica gli effetti', () => {
-    const s = newGame('Kevin', 'ragazze');
+    const s = nuovo();
     const { state } = performAction(s, 'ripetizioni', always(0.5));
     expect(state.soldi).toBe(s.soldi - 15);
     expect(state.energia).toBe(s.energia - 15);
@@ -52,35 +105,45 @@ describe('azioni', () => {
   });
 
   it('blocca le azioni senza energia', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), energia: 10 };
-    expect(actionBlocked(s, 'pizzeria')).toBe('Sei troppo stanco');
-    expect(performAction(s, 'pizzeria', always(0.5)).state).toBe(s);
+    const s = nuovo({ energia: 10 });
+    expect(actionBlocked(s, 'volantini')).toBe('Sei troppo stanco');
+    expect(performAction(s, 'volantini', always(0.5)).state).toBe(s);
   });
 
   it('a scuola si va una volta sola al giorno, e non nel weekend', () => {
-    const s = newGame('Kevin', 'ragazze');
+    const s = nuovo();
     const { state } = performAction(s, 'scuola_segui', always(0.5));
     expect(actionBlocked(state, 'scuola_segui')).toMatch(/andata/);
     expect(actionBlocked({ ...s, day: 6 }, 'scuola_segui')).toMatch(/non c’è scuola/);
   });
 
   it('rimorchiare con successo crea un partner', () => {
-    const s = newGame('Kevin', 'ragazzi');
-    const { state } = performAction(s, 'corteggia', always(0));
+    const { state } = performAction(nuovo(), 'corteggia', always(0));
     expect(state.partner).not.toBeNull();
     expect(actionBlocked(state, 'corteggia')).not.toBeNull();
     expect(actionBlocked(state, 'esci_partner')).toBeNull();
   });
 
+  it('per chattare e postare serve il telefono giusto', () => {
+    const s = nuovo({ partner: { nome: 'Asia', affetto: 50, giorni: 1 } });
+    expect(actionBlocked(s, 'chatta_partner')).toMatch(/telefono/);
+    expect(actionBlocked(s, 'social')).toMatch(/smartphone/);
+    const conTel = { ...s, inventario: ['conchiglia'] };
+    expect(actionBlocked(conTel, 'chatta_partner')).toBeNull();
+    expect(actionBlocked(conTel, 'social')).toMatch(/smartphone/);
+    expect(actionBlocked({ ...s, inventario: ['smartphone'] }, 'social')).toBeNull();
+  });
+
   it('ogni azione produce uno stato valido', () => {
     const rng = seeded(42);
-    const base: GameState = {
-      ...newGame('Test', 'tutti'),
+    const base = nuovo({
       day: 5,
       soldi: 500,
+      inventario: ['smartphone'],
       partner: { nome: 'Asia', affetto: 50, giorni: 3 },
-      motorino: { id: 'scooter_rotto', condizione: 50, truccato: false },
-    };
+      motorino: scooter({ condizione: 50 }),
+      lavoro: { id: 'pizzeria', ultimoTurno: 1 },
+    });
     for (const a of ACTIONS) {
       const { state, messages } = performAction(base, a.id, rng);
       expect(messages.length).toBeGreaterThan(0);
@@ -90,9 +153,29 @@ describe('azioni', () => {
   });
 });
 
+describe('lavoro fisso', () => {
+  it('assunzione, turno e un solo turno al giorno', () => {
+    let s = performAction(nuovo(), 'cerca_lavoro', always(0)).state;
+    expect(s.lavoro).not.toBeNull();
+    const soldi = s.soldi;
+    s = performAction(s, 'turno', always(0.9)).state;
+    expect(s.soldi).toBeGreaterThan(soldi);
+    expect(actionBlocked(s, 'turno')).toMatch(/fatto/);
+  });
+
+  it('se non ti presenti per una settimana ti licenziano', () => {
+    let s = nuovo({ lavoro: { id: 'gelateria', ultimoTurno: 1 }, scuolaOggi: true });
+    for (let i = 0; i < 6; i++) s = sleep({ ...s, scuolaOggi: true }, always(0.99)).state;
+    expect(s.lavoro).not.toBeNull();
+    const last = sleep({ ...s, scuolaOggi: true }, always(0.99));
+    expect(last.state.lavoro).toBeNull();
+    expect(last.messages.some((m) => m.includes('licenziato'))).toBe(true);
+  });
+});
+
 describe('negozio', () => {
   it('i vestiti aumentano la figosità e non si comprano due volte', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), soldi: 200 };
+    const s = nuovo({ soldi: 200 });
     const { state } = buyItem(s, 'sneakers');
     expect(state.soldi).toBe(200 - ITEMS.sneakers.prezzo);
     expect(figosita(state)).toBe(figosita(s) + ITEMS.sneakers.figo);
@@ -100,89 +183,113 @@ describe('negozio', () => {
   });
 
   it('i consumabili danno energia subito', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), energia: 20 };
-    expect(buyItem(s, 'energy').state.energia).toBe(50);
+    expect(buyItem(nuovo({ energia: 20 }), 'energy').state.energia).toBe(50);
   });
 
   it('non si compra senza soldi', () => {
-    const s = newGame('Kevin', 'ragazze');
-    expect(buyItem(s, 'scooter_bestia').messages[0]).toMatch(/Ti mancano/);
+    expect(buyItem(nuovo(), 'scooter_bestia').messages[0]).toMatch(/Ti mancano/);
   });
 
-  it('motorino: comprare, truccare e riparare', () => {
-    let s: GameState = { ...newGame('Kevin', 'ragazze'), soldi: 1000 };
+  it('motorino: comprare, truccare, riparare e fare benzina', () => {
+    let s = nuovo({ soldi: 1000 });
     s = buyItem(s, 'scooter_rotto').state;
-    expect(s.motorino?.condizione).toBe(100);
+    expect(s.motorino).toEqual({ id: 'scooter_rotto', condizione: 100, truccato: false, benzina: 100 });
     s = truccaMotorino(s).state;
     expect(s.motorino?.truccato).toBe(true);
-    s = { ...s, motorino: { ...s.motorino!, condizione: 40 } };
+    s = { ...s, motorino: { ...s.motorino!, condizione: 40, benzina: 30 } };
     const soldi = s.soldi;
     s = repairMotorino(s).state;
+    s = fillTank(s).state;
     expect(s.motorino?.condizione).toBe(100);
-    expect(s.soldi).toBe(soldi - 90);
+    expect(s.motorino?.benzina).toBe(100);
+    expect(s.soldi).toBe(soldi - 90 - 10);
   });
 
-  it('un motorino rotto non dà figosità', () => {
-    const s: GameState = { ...newGame('Kevin', 'ragazze'), motorino: { id: 'scooter_fulmine', condizione: 0, truccato: false } };
-    expect(figosita(s)).toBe(s.figo);
+  it('un motorino rotto o a secco non dà figosità', () => {
+    expect(figosita(nuovo({ motorino: scooter({ condizione: 0 }) }))).toBe(10);
+    expect(figosita(nuovo({ motorino: scooter({ benzina: 0 }) }))).toBe(10);
+    expect(figosita(nuovo({ motorino: scooter() }))).toBe(18);
   });
 });
 
 describe('fine giornata', () => {
   it('saltare la scuola dà un’assenza', () => {
-    const s = newGame('Kevin', 'ragazze');
-    const { state } = sleep(s, always(0.99));
+    const { state } = sleep(nuovo(), always(0.99));
     expect(state.day).toBe(2);
     expect(state.assenze).toBe(1);
     expect(state.scuolaOggi).toBe(false);
   });
 
   it('il lunedì arriva la paghetta', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), day: 7, soldi: 0, genitori: 50 };
-    const { state, messages } = sleep(s, always(0.99));
+    const { state, messages } = sleep(nuovo({ day: 7, soldi: 0, genitori: 50 }), always(0.99));
     expect(state.soldi).toBe(20);
     expect(messages.some((m) => m.includes('paghetta'))).toBe(true);
   });
 
+  it('a Natale arrivano i regali dei parenti', () => {
+    const { state, messages } = sleep(nuovo({ day: NATALE - 1, soldi: 0 }), always(0.99));
+    expect(state.soldi).toBe(100);
+    expect(messages.some((m) => m.includes('Natale'))).toBe(true);
+  });
+
+  it('a fine gennaio arriva la pagella del quadrimestre', () => {
+    const s = nuovo({ day: FINE_QUADRIMESTRE, voti: { ...nuovo().voti, matematica: 4 } });
+    const { state, messages } = sleep(s, always(0.99));
+    expect(messages.some((m) => m.includes('1 insufficienze'))).toBe(true);
+    expect(state.genitori).toBe(s.genitori - 5);
+  });
+
+  it('il motorino consuma benzina', () => {
+    const { state } = sleep(nuovo({ day: 6, motorino: scooter({ benzina: 4 }) }), always(0.99));
+    expect(state.motorino?.benzina).toBe(0);
+  });
+
   it('il partner trascurato alla fine ti molla', () => {
-    const s: GameState = { ...newGame('Kevin', 'ragazze'), day: 6, partner: { nome: 'Giada', affetto: 3, giorni: 10 } };
-    const { state } = sleep(s, always(0.99));
+    const { state } = sleep(nuovo({ day: 6, partner: { nome: 'Giada', affetto: 3, giorni: 10 } }), always(0.99));
     expect(state.partner).toBeNull();
     expect(state.exPartners).toBe(1);
   });
 
   it('a volte arriva un evento che blocca le azioni finché non rispondi', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), scuolaOggi: true };
-    const { state } = sleep(s, always(0.1));
+    const { state } = sleep(nuovo({ scuolaOggi: true }), always(0.1));
     expect(state.pendingEventId).not.toBeNull();
     expect(actionBlocked(state, 'piazzetta')).toMatch(/evento/);
     expect(sleep(state, always(0.1)).state).toBe(state);
-    const resolved = resolveEvent(state, 0, always(0.5));
-    expect(resolved.state.pendingEventId).toBeNull();
+    expect(resolveEvent(state, 0, always(0.5)).state.pendingEventId).toBeNull();
   });
 
   it('l’anno finisce a giugno', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), day: LAST_DAY };
-    const { state } = sleep(s, always(0.99));
+    const { state } = sleep(nuovo({ day: LAST_DAY }), always(0.99));
     expect(state.finito).toBe(true);
     expect(actionBlocked(state, 'piazzetta')).not.toBeNull();
   });
 });
 
 describe('eventi', () => {
+  it('l’interrogazione mette il voto nella materia del giorno', () => {
+    const s = nuovo({ day: 2, studio: 100, pendingEventId: 'interrogazione' });
+    const materia = materiaDelGiorno(2).id;
+    const { state } = resolveEvent(s, 0, always(0.5));
+    expect(state.voti[materia]).toBeGreaterThan(6);
+  });
+
   it('ogni scelta di ogni evento produce uno stato valido', () => {
     const rng = seeded(7);
-    const s: GameState = {
-      ...newGame('Test', 'tutti'),
+    const s = nuovo({
       day: 30,
       soldi: 10,
       figo: 60,
+      inventario: ['conchiglia'],
+      exPartners: 1,
       partner: { nome: 'Thomas', affetto: 50, giorni: 30 },
-      motorino: { id: 'scooter_rotto', condizione: 30, truccato: true },
-    };
+      motorino: scooter({ condizione: 30, truccato: true }),
+      lavoro: { id: 'scarpe', ultimoTurno: 29 },
+    });
+    expect(EVENTS.length).toBeGreaterThanOrEqual(20);
     for (const e of EVENTS) {
       expect(e.testo(s).length).toBeGreaterThan(0);
-      e.scelte.forEach((_, i) => {
+      e.scelte.forEach((c, i) => {
+        expect(choiceLabel(c, s).length).toBeGreaterThan(0);
         const { state, messages } = resolveEvent({ ...s, pendingEventId: e.id }, i, rng);
         expect(messages.length).toBeGreaterThan(0);
         expect(state.pendingEventId).toBeNull();
@@ -193,38 +300,53 @@ describe('eventi', () => {
 });
 
 describe('pagella e simulazione', () => {
-  it('chi studia viene promosso', () => {
-    const s = { ...newGame('Kevin', 'ragazze'), studio: 80 };
-    expect(pagella(s).promosso).toBe(true);
-    expect(pagella({ ...s, studio: 20 }).promosso).toBe(false);
+  it('chi studia viene promosso, chi no viene bocciato', () => {
+    expect(pagella(nuovo({ studio: 80 })).promosso).toBe(true);
+    expect(pagella(nuovo({ studio: 20 })).promosso).toBe(false);
+  });
+
+  it('con una o due insufficienze si è promossi con debito', () => {
+    const p = pagella(nuovo({ studio: 60, voti: { ...nuovo().voti, matematica: 2 } }));
+    expect(p.promosso).toBe(true);
+    expect(p.debiti).toEqual(['Matematica']);
+    expect(p.giudizio).toMatch(/debito in Matematica/);
+  });
+
+  it('troppe assenze vuol dire bocciatura', () => {
+    const p = pagella(nuovo({ studio: 90, assenze: 60, genere: 'f' }));
+    expect(p.promosso).toBe(false);
+    expect(p.giudizio).toMatch(/Bocciata per le assenze/);
   });
 
   it('statDeltas riporta solo le statistiche cambiate', () => {
-    const s = newGame('Kevin', 'ragazze');
-    const next = { ...s, soldi: s.soldi + 10, energia: s.energia - 5 };
-    expect(statDeltas(s, next)).toEqual([
+    const s = nuovo();
+    expect(statDeltas(s, { ...s, soldi: s.soldi + 10, energia: s.energia - 5 })).toEqual([
       { key: 'soldi', value: 10 },
       { key: 'energia', value: -5 },
     ]);
   });
 
-  it('si può giocare un anno intero senza errori', () => {
-    const rng = seeded(1234);
-    let s = newGame('Bot', 'tutti');
+  it.each(['m', 'f'] as const)('si può giocare un anno intero senza errori (%s)', (genere) => {
+    const rng = seeded(genere === 'm' ? 1234 : 99);
+    let s = newGame('Bot', genere, 'tutti');
     let guard = 0;
-    while (!s.finito && guard++ < 5000) {
+    while (!s.finito && guard++ < 6000) {
       if (s.pendingEventId) {
-        s = resolveEvent(s, 0, rng).state;
+        s = resolveEvent(s, Math.floor(rng() * EVENTS_BY_ID[s.pendingEventId].scelte.length), rng).state;
         continue;
       }
       const possibili = ACTIONS.filter((a) => actionBlocked(s, a.id) === null);
       if (possibili.length && rng() < 0.7) {
         s = performAction(s, possibili[Math.floor(rng() * possibili.length)].id, rng).state;
+      } else if (rng() < 0.1 && s.soldi > 60) {
+        const ids = Object.keys(ITEMS);
+        s = buyItem(s, ids[Math.floor(rng() * ids.length)]).state;
       } else {
         s = sleep(s, rng).state;
       }
     }
     expect(s.finito).toBe(true);
     expect(s.day).toBe(LAST_DAY);
+    expect(pagella(s).giudizio.length).toBeGreaterThan(0);
   });
 });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { COSTO_TRUCCO, costoRiparazione, itemsByCategory, MOTORINI } from '../../game/items';
+import { COSTO_TRUCCO, costoPieno, costoRiparazione, itemsByCategory, MOTORINI } from '../../game/items';
 import { GameState, ItemCategory } from '../../game/types';
 import { Bar, Button, Card, Chip, SectionTitle, tap } from '../components';
 import { colors } from '../theme';
@@ -9,6 +9,7 @@ import { colors } from '../theme';
 const CATEGORIE: { id: ItemCategory; label: string }[] = [
   { id: 'vestiti', label: '👕 Vestiti' },
   { id: 'accessori', label: '💍 Accessori' },
+  { id: 'telefoni', label: '📱 Telefoni' },
   { id: 'motorini', label: '🛵 Motorini' },
   { id: 'bar', label: '🥤 Bar' },
 ];
@@ -18,9 +19,10 @@ interface Props {
   onBuy: (id: string) => void;
   onRepair: () => void;
   onTrucca: () => void;
+  onFillTank: () => void;
 }
 
-export function ShopScreen({ state, onBuy, onRepair, onTrucca }: Props) {
+export function ShopScreen({ state, onBuy, onRepair, onTrucca, onFillTank }: Props) {
   const [cat, setCat] = useState<ItemCategory>('vestiti');
   const m = state.motorino;
 
@@ -56,6 +58,8 @@ export function ShopScreen({ state, onBuy, onRepair, onTrucca }: Props) {
           </Text>
           <Bar value={m.condizione} color={m.condizione < 30 ? colors.red : colors.yellow} />
           <Text style={styles.garageSub}>Condizioni {m.condizione}%</Text>
+          <Bar value={m.benzina} color={m.benzina < 20 ? colors.red : colors.orange} />
+          <Text style={styles.garageSub}>Benzina {m.benzina}%</Text>
           <View style={styles.garageButtons}>
             <Button
               small
@@ -73,6 +77,13 @@ export function ShopScreen({ state, onBuy, onRepair, onTrucca }: Props) {
               onPress={onTrucca}
             />
           </View>
+          <Button
+            small
+            color={colors.card}
+            label={m.benzina >= 100 ? '⛽ Serbatoio pieno' : `⛽ Fai il pieno ${costoPieno(m.benzina)}€`}
+            disabled={m.benzina >= 100}
+            onPress={onFillTank}
+          />
         </Card>
       ) : null}
 

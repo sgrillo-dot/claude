@@ -1,9 +1,9 @@
 import { ACTIONS_BY_ID } from './actions';
-import { dayOfWeek, isSchoolDay, LAST_DAY } from './calendar';
+import { BEFANA, dayOfWeek, FINE_QUADRIMESTRE, festa, isSchoolDay, LAST_DAY, NATALE } from './calendar';
 import { EVENTS, EVENTS_BY_ID } from './events';
-import { COSTO_TRUCCO, costoRiparazione, ITEMS } from './items';
-import { addLog, applyDelta, figosita, outcome } from './state';
-import { GameEvent, GameState, Outcome, Rng } from './types';
+import { COSTO_TRUCCO, costoPieno, costoRiparazione, ITEMS, LAVORI_BY_ID } from './items';
+import { addLog, applyDelta, figosita, g, MATERIE, o, outcome } from './state';
+import { GameEvent, GameState, Materia, Outcome, Rng } from './types';
 
 const fail = (s: GameState, text: string): Outcome => ({ state: s, messages: [text] });
 
@@ -15,7 +15,7 @@ export function actionBlocked(s: GameState, actionId: string): string | null {
   if (s.pendingEventId) return 'Prima rispondi all’evento';
   const reason = a.bloccata?.(s);
   if (reason) return reason;
-  if (s.energia < a.energia) return 'Sei troppo stanco';
+  if (s.energia < a.energia) return `Sei troppo stanc${o(s)}`;
   if (s.soldi < a.soldi) return `Ti servono ${a.soldi}€`;
   return null;
 }
@@ -39,7 +39,7 @@ export function buyItem(s: GameState, itemId: string): Outcome {
   }
   if (item.categoria === 'motorini') {
     if (s.motorino?.id === item.id) return fail(s, 'Ce l’hai già');
-    const next = { ...paid, motorino: { id: item.id, condizione: 100, truccato: false } };
+    const next = { ...paid, motorino: { id: item.id, condizione: 100, truccato: false, benzina: 100 } };
     return outcome(next, `Hai comprato ${item.nome}! Brum brum. 🛵`);
   }
   if (s.inventario.includes(item.id)) return fail(s, 'Ce l’hai già');
@@ -61,6 +61,15 @@ export function truccaMotorino(s: GameState): Outcome {
   if (s.soldi < COSTO_TRUCCO) return fail(s, `Ti servono ${COSTO_TRUCCO}€`);
   const next = { ...s, motorino: { ...s.motorino, truccato: true } };
   return outcome(next, 'Marmitta nuova: ora si sente da Milano. Occhio ai vigili!', { soldi: -COSTO_TRUCCO });
+}
+
+export function fillTank(s: GameState): Outcome {
+  if (!s.motorino) return fail(s, 'Non hai un motorino');
+  if (s.motorino.benzina >= 100) return fail(s, 'Il serbatoio è già pieno');
+  const costo = costoPieno(s.motorino.benzina);
+  if (s.soldi < costo) return fail(s, `Il pieno costa ${costo}€`);
+  const next = { ...s, motorino: { ...s.motorino, benzina: 100 } };
+  return outcome(next, `Pieno fatto con ${costo}€. Profumo di miscela. ⛽`, { soldi: -costo });
 }
 
 function pickEvent(s: GameState, rng: Rng): GameEvent | null {
@@ -90,17 +99,19 @@ export function sleep(s: GameState, rng: Rng): Outcome {
 
   if (isSchoolDay(s.day) && !s.scuolaOggi) {
     next = applyDelta({ ...next, assenze: next.assenze + 1 }, { genitori: -6 });
-    note('Oggi non sei andato a scuola: assenza ingiustificata!');
+    note(`Oggi non sei andat${o(s)} a scuola: assenza ingiustificata!`);
   }
 
   next = applyDelta({ ...next, day: s.day + 1, scuolaOggi: false }, { energia: 65, figo: -1 });
   if (isSchoolDay(s.day)) next = applyDelta(next, { studio: -1 });
 
   if (next.motorino) {
-    const usura = next.motorino.truccato ? 3 : 2;
-    const condizione = Math.max(0, next.motorino.condizione - usura);
-    next = { ...next, motorino: { ...next.motorino, condizione } };
-    if (condizione === 0 && s.motorino!.condizione > 0) note('Il motorino ti ha lasciato a piedi. Va riparato!');
+    const m = next.motorino;
+    const condizione = Math.max(0, m.condizione - (m.truccato ? 3 : 2));
+    const benzina = Math.max(0, m.benzina - (m.truccato ? 9 : 6));
+    next = { ...next, motorino: { ...m, condizione, benzina } };
+    if (condizione === 0 && m.condizione > 0) note('Il motorino ti ha lasciato a piedi. Va riparato!');
+    else if (benzina === 0 && m.benzina > 0) note('Il motorino è a secco: fai benzina nei Negozi.');
   }
 
   if (next.partner) {
@@ -108,16 +119,43 @@ export function sleep(s: GameState, rng: Rng): Outcome {
     if (affetto <= 0) {
       const nome = next.partner.nome;
       next = applyDelta({ ...next, partner: null, exPartners: next.exPartners + 1 }, { figo: -5 });
-      note(`${nome} ti ha mollato. “Non mi caghi mai.” 💔`);
+      note(`${nome} ti ha ${g(s, 'mollato', 'mollata')}. “Non mi caghi mai.” 💔`);
     } else {
       next = { ...next, partner: { ...next.partner, affetto, giorni: next.partner.giorni + 1 } };
     }
+  }
+
+  if (next.lavoro && next.day - next.lavoro.ultimoTurno >= 7) {
+    const job = LAVORI_BY_ID[next.lavoro.id];
+    next = applyDelta({ ...next, lavoro: null }, { figo: -2 });
+    note(`Non ti presenti da una settimana: ${job.nome} ti ha ${g(s, 'licenziato', 'licenziata')}.`);
   }
 
   if (dayOfWeek(next.day) === 0) {
     const paghetta = 10 + Math.floor(next.genitori / 5);
     next = applyDelta(next, { soldi: paghetta });
     note(`È lunedì: paghetta di ${paghetta}€.`);
+  }
+
+  const vacanza = festa(next.day);
+  if (vacanza && vacanza !== festa(s.day)) note(`🎈 ${vacanza}: niente scuola!`);
+
+  if (next.day === NATALE) {
+    next = applyDelta(next, { soldi: 100, energia: 30 });
+    note('🎄 Buon Natale! Tra nonni e zii hai raccolto 100€.');
+  }
+  if (next.day === BEFANA) {
+    next = applyDelta(next, { soldi: 10 });
+    note('🧦 La Befana ti ha lasciato carbone di zucchero e 10€.');
+  }
+  if (next.day === FINE_QUADRIMESTRE + 1) {
+    const { media, insufficienze } = mediaVoti(next);
+    const contenti = insufficienze === 0;
+    next = applyDelta(next, { genitori: contenti ? 10 : -5 * insufficienze });
+    note(
+      `📄 Pagella del primo quadrimestre: media ${media.toFixed(1)}` +
+        (contenti ? ', tutto sufficiente. I tuoi sono fieri!' : `, ${insufficienze} insufficienze. A casa è tempesta.`),
+    );
   }
 
   if (next.day > LAST_DAY) {
@@ -146,23 +184,44 @@ export function resolveEvent(s: GameState, choiceIndex: number, rng: Rng): Outco
   return choice.esito({ ...s, pendingEventId: null }, rng);
 }
 
+export function mediaVoti(s: GameState): { media: number; insufficienze: number } {
+  const voti = MATERIE.map((m) => s.voti[m.id]);
+  return {
+    media: voti.reduce((a, b) => a + b, 0) / voti.length,
+    insufficienze: voti.filter((v) => v < 6).length,
+  };
+}
+
 export interface Pagella {
-  voto: number;
+  voti: Record<Materia, number>;
+  media: number;
+  debiti: string[];
   promosso: boolean;
   figosita: number;
   giudizio: string;
 }
 
+/** Il voto finale di ogni materia è la media tra registro e preparazione generale. */
 export function pagella(s: GameState): Pagella {
-  const voto = Math.max(3, Math.min(10, Math.round(3 + s.studio / 14)));
-  const promosso = voto >= 6 && s.assenze <= 50;
+  const preparazione = 3 + s.studio / 14;
+  const voti = Object.fromEntries(
+    MATERIE.map((m) => [m.id, Math.max(2, Math.min(10, Math.round((s.voti[m.id] + preparazione) / 2)))]),
+  ) as Record<Materia, number>;
+  const insufficienti = MATERIE.filter((m) => voti[m.id] < 6);
+  const media = MATERIE.reduce((sum, m) => sum + voti[m.id], 0) / MATERIE.length;
+  const promosso = insufficienti.length <= 2 && s.assenze <= 50;
+  const debiti = promosso ? insufficienti.map((m) => m.nome) : [];
   const f = figosita(s);
+  const promossa = g(s, 'Promosso', 'Promossa');
+  const bocciata = g(s, 'Bocciato', 'Bocciata');
   let giudizio: string;
-  if (promosso && f >= 60) giudizio = 'Promosso e idolo della scuola. Sei la leggenda dei giargia.';
-  else if (promosso) giudizio = 'Promosso! I tuoi genitori ti guardano con sospetto, ma sono felici.';
-  else if (f >= 60) giudizio = 'Bocciato, ma col motorino più figo della città. Ne valeva la pena?';
-  else giudizio = 'Bocciato e pure sfigato. L’anno prossimo andrà meglio. Forse.';
-  return { voto, promosso, figosita: f, giudizio };
+  if (s.assenze > 50) giudizio = `${bocciata} per le assenze: ${s.assenze} giorni di sega. Leggendario, ma inutile.`;
+  else if (promosso && debiti.length) giudizio = `${promossa} con debito in ${debiti.join(' e ')}. Estate sui libri!`;
+  else if (promosso && f >= 60) giudizio = `${promossa} e idolo della scuola. Sei la leggenda dei giargia.`;
+  else if (promosso) giudizio = `${promossa}! I tuoi genitori ti guardano con sospetto, ma sono felici.`;
+  else if (f >= 60) giudizio = `${bocciata}, ma col look più figo della città. Ne valeva la pena?`;
+  else giudizio = `${bocciata} e pure sfigat${o(s)}. L’anno prossimo andrà meglio. Forse.`;
+  return { voti, media, debiti, promosso, figosita: f, giudizio };
 }
 
 export type StatDelta = { key: 'soldi' | 'figo' | 'studio' | 'energia' | 'genitori'; value: number };

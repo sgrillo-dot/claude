@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDay } from '../game/calendar';
 import {
   buyItem,
+  fillTank,
   pendingEvent,
   performAction,
   repairMotorino,
@@ -13,8 +14,8 @@ import {
   statDeltas,
   truccaMotorino,
 } from '../game/engine';
-import { newGame } from '../game/state';
-import { GameState, Outcome, Preferenza } from '../game/types';
+import { migrate, newGame } from '../game/state';
+import { GameState, Genere, Outcome, Preferenza } from '../game/types';
 import { tap, ToastData } from './components';
 
 const SAVE_KEY = 'giargia-save-v1';
@@ -37,8 +38,8 @@ export function useGame() {
     AsyncStorage.getItem(SAVE_KEY)
       .then((raw) => {
         if (!raw) return;
-        const parsed = JSON.parse(raw) as GameState;
-        if (parsed?.version === 1) setState(parsed);
+        const parsed = migrate(JSON.parse(raw));
+        if (parsed) setState(parsed);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -73,12 +74,13 @@ export function useGame() {
     toast,
     hideToast: () => setToast(null),
     eventResult,
-    start: (nome: string, preferenza: Preferenza) => setState(newGame(nome, preferenza)),
+    start: (nome: string, genere: Genere, preferenza: Preferenza) => setState(newGame(nome, genere, preferenza)),
     reset: () => setState(null),
     act: (id: string) => apply((s) => performAction(s, id, Math.random)),
     buy: (id: string) => apply((s) => buyItem(s, id)),
     repair: () => apply(repairMotorino),
     trucca: () => apply(truccaMotorino),
+    fillTank: () => apply(fillTank),
     sleep: () => {
       if (!state) return;
       const { state: next, messages } = sleep(state, Math.random);

@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACTIONS } from '../../game/actions';
-import { isDiscoNight, isSchoolDay } from '../../game/calendar';
-import { actionBlocked } from '../../game/engine';
+import { festa, isDiscoNight, isSchoolDay } from '../../game/calendar';
+import { actionBlocked, mediaVoti } from '../../game/engine';
+import { MATERIE } from '../../game/state';
 import { ActionTab, GameState } from '../../game/types';
-import { Chip, SectionTitle, tap } from '../components';
+import { Card, Chip, SectionTitle, tap } from '../components';
 import { colors, hardShadow } from '../theme';
 
 const TITLES: Record<ActionTab, { titolo: string; color: string }> = {
@@ -15,6 +16,7 @@ const TITLES: Record<ActionTab, { titolo: string; color: string }> = {
 
 function hintFor(tab: ActionTab, s: GameState): string {
   if (tab === 'scuola') {
+    if (festa(s.day)) return `${festa(s.day)}! Niente scuola, ma puoi sempre studiare.`;
     if (!isSchoolDay(s.day)) return 'Weekend! Niente scuola, ma puoi sempre studiare.';
     return s.scuolaOggi ? 'Scuola fatta per oggi.' : 'Oggi c’è scuola: se non scegli, è assenza.';
   }
@@ -29,6 +31,7 @@ export function ActionsScreen({ tab, state, onAct }: { tab: ActionTab; state: Ga
   return (
     <View style={styles.wrap}>
       <SectionTitle hint={hintFor(tab, state)}>{meta.titolo}</SectionTitle>
+      {tab === 'scuola' ? <Registro state={state} /> : null}
       {actions.map((a) => {
         const blocked = actionBlocked(state, a.id);
         return (
@@ -67,8 +70,51 @@ export function ActionsScreen({ tab, state, onAct }: { tab: ActionTab; state: Ga
   );
 }
 
+function Registro({ state }: { state: GameState }) {
+  const { media } = mediaVoti(state);
+  return (
+    <Card style={styles.registro}>
+      <View style={styles.registroHead}>
+        <Text style={styles.registroTitle}>📒 Registro</Text>
+        <Text style={styles.registroMedia}>Media {media.toFixed(1)}</Text>
+      </View>
+      <View style={styles.voti}>
+        {MATERIE.map((m) => {
+          const v = state.voti[m.id];
+          return (
+            <View key={m.id} style={[styles.voto, { backgroundColor: v < 6 ? '#FFE0E3' : v >= 8 ? '#D8F5E3' : colors.card }]}>
+              <Text style={styles.votoNum}>{v}</Text>
+              <Text style={styles.votoLabel} numberOfLines={1}>
+                {m.emoji} {m.nome}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={styles.registroHint}>I voti arrivano con interrogazioni e verifiche. Più studi, più vai bene.</Text>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: { gap: 14 },
+  registro: { gap: 10 },
+  registroHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  registroTitle: { fontSize: 18, fontWeight: '900', color: colors.ink },
+  registroMedia: { fontSize: 15, fontWeight: '900', color: colors.ink },
+  voti: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  voto: {
+    width: '31%',
+    flexGrow: 1,
+    borderWidth: 2,
+    borderColor: colors.ink,
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  votoNum: { fontSize: 24, fontWeight: '900', color: colors.ink },
+  votoLabel: { fontSize: 12, fontWeight: '700', color: colors.ink },
+  registroHint: { fontSize: 13, color: colors.muted },
   action: {
     flexDirection: 'row',
     gap: 14,

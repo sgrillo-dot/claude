@@ -1,9 +1,23 @@
-import { isDiscoNight, isSchoolDay } from './calendar';
-import { chance, figosita, outcome, randomPartnerName } from './state';
+import { festa, isDiscoNight, isSchoolDay } from './calendar';
+import { LAVORI, LAVORI_BY_ID } from './items';
+import {
+  chance,
+  figosita,
+  g,
+  hasSmartphone,
+  hasTelefono,
+  o,
+  outcome,
+  pick,
+  randomPartnerName,
+  registraVoto,
+} from './state';
 import { Action, GameState } from './types';
 
-const soloGiorniDiScuola = (s: GameState) =>
-  !isSchoolDay(s.day) ? 'Oggi non c’è scuola' : s.scuolaOggi ? 'Per oggi la scuola è andata' : null;
+const soloGiorniDiScuola = (s: GameState) => {
+  if (!isSchoolDay(s.day)) return festa(s.day) ? `${festa(s.day)}: niente scuola!` : 'Oggi non c’è scuola';
+  return s.scuolaOggi ? 'Per oggi la scuola è andata' : null;
+};
 
 const serveSingle = (s: GameState) => (s.partner ? 'Hai già qualcuno, giargia' : null);
 const servePartner = (s: GameState) => (s.partner ? null : 'Prima trova qualcuno con cui uscire');
@@ -38,7 +52,7 @@ export const ACTIONS: Action[] = [
     esegui: (s, rng) => {
       const next = { ...s, scuolaOggi: true };
       if (chance(rng, 0.25)) {
-        return outcome(next, 'Ti sei messo a russare in classe. Nota sul registro!', {
+        return outcome(next, `Ti sei mess${o(s)} a russare in classe. Nota sul registro!`, {
           energia: 10,
           studio: 1,
           genitori: -8,
@@ -59,7 +73,7 @@ export const ACTIONS: Action[] = [
     esegui: (s, rng) => {
       const next = { ...s, scuolaOggi: true, assenze: s.assenze + 1 };
       if (chance(rng, 0.3)) {
-        return outcome(next, 'Beccato! Tua madre è passata proprio dai giardinetti.', {
+        return outcome(next, `Beccat${o(s)}! Tua madre è passata proprio dai giardinetti.`, {
           figo: 3,
           studio: -3,
           genitori: -15,
@@ -148,11 +162,55 @@ export const ACTIONS: Action[] = [
     },
   },
   {
+    id: 'palestra',
+    tab: 'uscite',
+    emoji: '🏋️',
+    titolo: 'Palestra',
+    descrizione: 'Pesi, specchi e selfie. Aiuta anche in ginnastica.',
+    energia: 30,
+    soldi: 8,
+    esegui: (s, rng) => {
+      if (chance(rng, 0.35)) {
+        const next = registraVoto(s, 'ginnastica', Math.min(10, s.voti.ginnastica + 2));
+        return outcome(next, 'Allenamento top: il prof di ginnastica se n’è accorto.', { figo: 2 });
+      }
+      return outcome(s, 'Un’ora di pesi. Domani non alzi le braccia.', { figo: 2 });
+    },
+  },
+  {
+    id: 'lampada',
+    tab: 'uscite',
+    emoji: '🌞',
+    titolo: 'Lampada abbronzante',
+    descrizione: 'Abbronzatura da Maldive anche a febbraio.',
+    energia: 5,
+    soldi: 12,
+    esegui: (s, rng) =>
+      chance(rng, 0.15)
+        ? outcome(s, 'Troppa lampada: sei color aragosta. Tutti ridono.', { figo: -2 })
+        : outcome(s, `Abbronzat${o(s)} come dopo un mese a Ibiza.`, { figo: 3 }),
+  },
+  {
+    id: 'social',
+    tab: 'uscite',
+    emoji: '🤳',
+    titolo: 'Posta una storia',
+    descrizione: 'Serve uno smartphone. Like assicurati (forse).',
+    energia: 5,
+    soldi: 0,
+    bloccata: (s) => (hasSmartphone(s) ? null : 'Ti serve uno smartphone'),
+    esegui: (s, rng) => {
+      if (chance(rng, 0.15)) return outcome(s, 'Storia flop: tre visualizzazioni, una è tua madre.', { figo: -2 });
+      if (chance(rng, 0.2)) return outcome(s, 'La storia esplode: cento like in un’ora!', { figo: 4 });
+      return outcome(s, 'Storia postata. Un po’ di like, niente male.', { figo: 1 });
+    },
+  },
+  {
     id: 'corteggia',
     tab: 'uscite',
     emoji: '😏',
     titolo: 'Prova a rimorchiare',
-    descrizione: 'Più sei figo, più è facile.',
+    descrizione: 'Più figosità hai, più è facile.',
     energia: 15,
     soldi: 0,
     bloccata: serveSingle,
@@ -177,7 +235,22 @@ export const ACTIONS: Action[] = [
     esegui: (s) => {
       const p = s.partner!;
       const next = { ...s, partner: { ...p, affetto: Math.min(100, p.affetto + 15) } };
-      return outcome(next, `Pizza e passeggiata con ${p.nome}. Che romantico.`, { figo: 1 });
+      return outcome(next, `Pizza e passeggiata con ${p.nome}. Che serata.`, { figo: 1 });
+    },
+  },
+  {
+    id: 'chatta_partner',
+    tab: 'uscite',
+    emoji: '💬',
+    titolo: 'Scrivi al tuo amore',
+    descrizione: 'Messaggini e cuoricini. Serve un telefono.',
+    energia: 5,
+    soldi: 1,
+    bloccata: (s) => servePartner(s) ?? (hasTelefono(s) ? null : 'Ti serve un telefono'),
+    esegui: (s) => {
+      const p = s.partner!;
+      const next = { ...s, partner: { ...p, affetto: Math.min(100, p.affetto + 7) } };
+      return outcome(next, `Un’ora di messaggi con ${p.nome}. Credito finito, cuore pieno.`);
     },
   },
   {
@@ -207,11 +280,64 @@ export const ACTIONS: Action[] = [
     esegui: (s) => {
       const p = s.partner!;
       const next = { ...s, partner: null, exPartners: s.exPartners + 1 };
-      return outcome(next, `Hai mollato ${p.nome} con un vocale di 4 minuti. Spietato.`, { figo: 1 });
+      return outcome(next, `Hai mollato ${p.nome} con un vocale di 4 minuti. Spietat${o(s)}.`, { figo: 1 });
     },
   },
 
   // ---------------------------------------------------------------- Lavoro
+  {
+    id: 'cerca_lavoro',
+    tab: 'lavoro',
+    emoji: '📋',
+    titolo: 'Cerca un lavoro fisso',
+    descrizione: 'Giri i negozi col curriculum. Look e voti aiutano.',
+    energia: 15,
+    soldi: 0,
+    bloccata: (s) => (s.lavoro ? 'Un lavoro ce l’hai già' : null),
+    esegui: (s, rng) => {
+      if (chance(rng, 0.2 + figosita(s) / 300 + s.studio / 400)) {
+        const job = pick(LAVORI, rng);
+        // Puoi fare il primo turno già oggi.
+        const next = { ...s, lavoro: { id: job.id, ultimoTurno: s.day - 1 } };
+        return outcome(next, `${g(s, 'Assunto', 'Assunta')} da ${job.nome}! Paga: ${job.paga}€ a turno.`);
+      }
+      return outcome(s, '“Le faremo sapere.” Classico.', { figo: -1 });
+    },
+  },
+  {
+    id: 'turno',
+    tab: 'lavoro',
+    emoji: '⏱️',
+    titolo: 'Fai il turno al lavoro',
+    descrizione: 'Se non ti presenti per una settimana, ti licenziano.',
+    energia: 40,
+    soldi: 0,
+    bloccata: (s) =>
+      !s.lavoro ? 'Prima trovati un lavoro fisso' : s.lavoro.ultimoTurno === s.day ? 'Il turno di oggi è fatto' : null,
+    esegui: (s, rng) => {
+      const job = LAVORI_BY_ID[s.lavoro!.id];
+      const next = { ...s, lavoro: { ...s.lavoro!, ultimoTurno: s.day } };
+      const mancia = chance(rng, 0.25) ? 8 : 0;
+      const text = mancia
+        ? `Turno da ${job.nome}: ${job.paga}€ più ${mancia}€ di mancia!`
+        : `Turno da ${job.nome}: ${job.paga}€ guadagnati col sudore.`;
+      return outcome(next, text, { soldi: job.paga + mancia, figo: job.figo });
+    },
+  },
+  {
+    id: 'licenziati',
+    tab: 'lavoro',
+    emoji: '🚪',
+    titolo: 'Licenziati',
+    descrizione: 'Basta, meriti di meglio.',
+    energia: 0,
+    soldi: 0,
+    bloccata: (s) => (s.lavoro ? null : 'Non hai un lavoro fisso'),
+    esegui: (s) => {
+      const job = LAVORI_BY_ID[s.lavoro!.id];
+      return outcome({ ...s, lavoro: null }, `Ti sei licenziat${o(s)} da ${job.nome}. Libertà!`, { figo: 1 });
+    },
+  },
   {
     id: 'volantini',
     tab: 'lavoro',
@@ -221,22 +347,6 @@ export const ACTIONS: Action[] = [
     energia: 30,
     soldi: 0,
     esegui: (s) => outcome(s, 'Mille volantini nelle cassette. Paga: 12€.', { soldi: 12, figo: -1 }),
-  },
-  {
-    id: 'pizzeria',
-    tab: 'lavoro',
-    emoji: '🍽️',
-    titolo: 'Lavapiatti in pizzeria',
-    descrizione: 'Turno lungo, mani a mollo.',
-    energia: 45,
-    soldi: 0,
-    esegui: (s, rng) => {
-      const mancia = chance(rng, 0.3) ? 8 : 0;
-      const text = mancia
-        ? 'Turno in pizzeria: 30€ più 8€ di mancia dal pizzaiolo!'
-        : 'Turno in pizzeria: 30€ e le mani come prugne.';
-      return outcome(s, text, { soldi: 30 + mancia });
-    },
   },
   {
     id: 'officina',

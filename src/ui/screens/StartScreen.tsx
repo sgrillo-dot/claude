@@ -3,9 +3,15 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { pagella } from '../../game/engine';
-import { GameState, Preferenza } from '../../game/types';
+import { g, MATERIE } from '../../game/state';
+import { GameState, Genere, Preferenza } from '../../game/types';
 import { Button, Card, Chip, tap } from '../components';
 import { colors, hardShadow } from '../theme';
+
+const GENERI: { id: Genere; label: string }[] = [
+  { id: 'm', label: '🙋‍♂️ Un giargia' },
+  { id: 'f', label: '🙋‍♀️ Una giargia' },
+];
 
 const PREFERENZE: { id: Preferenza; label: string }[] = [
   { id: 'ragazze', label: '👩 Ragazze' },
@@ -13,10 +19,37 @@ const PREFERENZE: { id: Preferenza; label: string }[] = [
   { id: 'tutti', label: '🌈 Tutti' },
 ];
 
-export function StartScreen({ onStart }: { onStart: (nome: string, p: Preferenza) => void }) {
+function Choice<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <View style={styles.prefs} accessibilityRole="radiogroup">
+      {options.map((p) => (
+        <Pressable
+          key={p.id}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: value === p.id }}
+          onPress={() => {
+            tap();
+            onChange(p.id);
+          }}
+          style={[styles.pref, value === p.id && styles.prefActive]}
+        >
+          <Text style={styles.prefText}>{p.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+export function StartScreen({ onStart }: { onStart: (nome: string, genere: Genere, p: Preferenza) => void }) {
   const insets = useSafeAreaInsets();
   const [nome, setNome] = useState('');
+  const [genere, setGenere] = useState<Genere>('m');
   const [pref, setPref] = useState<Preferenza>('ragazze');
+
+  const changeGenere = (v: Genere) => {
+    setGenere(v);
+    setPref(v === 'f' ? 'ragazzi' : 'ragazze');
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -30,7 +63,7 @@ export function StartScreen({ onStart }: { onStart: (nome: string, p: Preferenza
           <View style={styles.logoBadge}>
             <Text style={styles.logoBottom}>SIMULATOR</Text>
           </View>
-          <Text style={styles.tagline}>Un anno scolastico per diventare il più figo del quartiere.</Text>
+          <Text style={styles.tagline}>Un anno scolastico per diventare la leggenda del quartiere.</Text>
         </View>
 
         <Card style={styles.form}>
@@ -45,26 +78,13 @@ export function StartScreen({ onStart }: { onStart: (nome: string, p: Preferenza
             returnKeyType="done"
             style={styles.input}
           />
-          <Text style={styles.label}>Ti piacciono…</Text>
-          <View style={styles.prefs}>
-            {PREFERENZE.map((p) => (
-              <Pressable
-                key={p.id}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: pref === p.id }}
-                onPress={() => {
-                  tap();
-                  setPref(p.id);
-                }}
-                style={[styles.pref, pref === p.id && styles.prefActive]}
-              >
-                <Text style={styles.prefText}>{p.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.label}>Sei…</Text>
+          <Choice options={GENERI} value={genere} onChange={changeGenere} />
+          <Text style={[styles.label, { marginTop: 8 }]}>Ti piacciono…</Text>
+          <Choice options={PREFERENZE} value={pref} onChange={setPref} />
         </Card>
 
-        <Button label="Inizia l’anno! 🚀" color={colors.pink} onPress={() => onStart(nome, pref)} />
+        <Button label="Inizia l’anno! 🚀" color={colors.pink} onPress={() => onStart(nome, genere, pref)} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -78,8 +98,18 @@ export function PagellaScreen({ state, onRestart }: { state: GameState; onRestar
       <Text style={styles.pagellaEmoji}>{p.promosso ? '🎓' : '📉'}</Text>
       <Text style={styles.pagellaTitle}>Pagella di {state.nome}</Text>
       <Card color={p.promosso ? colors.teal : colors.pink} style={styles.pagella}>
-        <Text style={styles.voto}>{p.voto}</Text>
-        <Text style={styles.esito}>{p.promosso ? 'PROMOSSO' : 'BOCCIATO'}</Text>
+        <Text style={styles.voto}>{p.media.toFixed(1)}</Text>
+        <Text style={styles.esito}>{p.promosso ? g(state, 'PROMOSSO', 'PROMOSSA') : g(state, 'BOCCIATO', 'BOCCIATA')}</Text>
+      </Card>
+      <Card style={styles.materie}>
+        {MATERIE.map((m) => (
+          <View key={m.id} style={styles.materia}>
+            <Text style={styles.materiaNome}>
+              {m.emoji} {m.nome}
+            </Text>
+            <Text style={[styles.materiaVoto, p.voti[m.id] < 6 && { color: colors.red }]}>{p.voti[m.id]}</Text>
+          </View>
+        ))}
       </Card>
       <View style={styles.prefs}>
         <Chip label={`😎 Figosità ${p.figosita}`} />
@@ -142,5 +172,9 @@ const styles = StyleSheet.create({
   pagella: { alignItems: 'center', paddingVertical: 24 },
   voto: { fontSize: 72, fontWeight: '900', color: colors.ink },
   esito: { fontSize: 22, fontWeight: '900', color: colors.ink, letterSpacing: 3 },
+  materie: { gap: 4 },
+  materia: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  materiaNome: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  materiaVoto: { fontSize: 18, fontWeight: '900', color: colors.ink },
   giudizio: { fontSize: 17, lineHeight: 24, color: colors.ink, fontWeight: '600' },
 });
