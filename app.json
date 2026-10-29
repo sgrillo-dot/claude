@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Giargia Simulator",
+    "slug": "giargia-simulator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.giargiasimulator.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFD23F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.giargiasimulator.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Giargia Simulator"
+    },
+    "backgroundColor": "#FFF4D6",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFD23F"
+    }
+  }
+}
