@@ -6,6 +6,8 @@ import {
   fillTank,
   pagella,
   performAction,
+  provaci,
+  provaciBlocked,
   repairMotorino,
   resolveEvent,
   sleep,
@@ -14,8 +16,8 @@ import {
 } from '../engine';
 import { choiceLabel, EVENTS, EVENTS_BY_ID } from '../events';
 import { ITEMS } from '../items';
-import { figosita, materiaDelGiorno, migrate, newGame, titoloGiargia } from '../state';
-import { GameState } from '../types';
+import { candidati, chanceConquista, figosita, materiaDelGiorno, migrate, newGame, titoloGiargia } from '../state';
+import { GameState, Partner } from '../types';
 
 /** Generatore pseudo-casuale deterministico per test ripetibili. */
 function seeded(seed: number) {
@@ -28,6 +30,18 @@ function seeded(seed: number) {
 
 const always = (v: number) => () => v;
 const nuovo = (over: Partial<GameState> = {}): GameState => ({ ...newGame('Kevin', 'm', 'ragazze'), ...over });
+const tipa = (over: Partial<Partner> = {}): Partner => ({
+  nome: 'Asia',
+  genere: 'f',
+  emoji: '👩',
+  figo: 40,
+  gusto: 'romantico',
+  affetto: 50,
+  giorni: 1,
+  fatto: {},
+  presentato: false,
+  ...over,
+});
 const scooter = (over: Partial<NonNullable<GameState['motorino']>> = {}) => ({
   id: 'scooter_rotto',
   condizione: 100,
@@ -81,11 +95,19 @@ describe('salvataggi', () => {
     const { genere, voti, lavoro, ...rest } = nuovo({ motorino: scooter() });
     const vecchio = { ...rest, version: 1, motorino: { id: 'scooter_rotto', condizione: 80, truccato: false } };
     const s = migrate(JSON.parse(JSON.stringify(vecchio)))!;
-    expect(s.version).toBe(2);
+    expect(s.version).toBe(3);
     expect(s.genere).toBe('m');
     expect(s.voti.matematica).toBe(6);
     expect(s.lavoro).toBeNull();
     expect(s.motorino?.benzina).toBe(100);
+  });
+
+  it('converte un partner del vecchio formato', () => {
+    const { rifiuti, partner, ...rest } = nuovo();
+    const vecchio = { ...rest, version: 2, partner: { nome: 'Thomas', affetto: 70, giorni: 12 } };
+    const s = migrate(JSON.parse(JSON.stringify(vecchio)))!;
+    expect(s.partner).toMatchObject({ nome: 'Thomas', genere: 'm', affetto: 70, giorni: 12, fatto: {}, presentato: false });
+    expect(s.rifiuti).toEqual([]);
   });
 
   it('scarta dati non validi', () => {
@@ -117,19 +139,13 @@ describe('azioni', () => {
     expect(actionBlocked({ ...s, day: 6 }, 'scuola_segui')).toMatch(/non c’è scuola/);
   });
 
-  it('rimorchiare con successo crea un partner', () => {
-    const state = { ...performAction(nuovo(), 'corteggia', always(0)).state, pendingEventId: null };
-    expect(state.partner).not.toBeNull();
-    expect(actionBlocked(state, 'corteggia')).not.toBeNull();
-    expect(actionBlocked(state, 'esci_partner')).toBeNull();
-  });
 
   it('per chattare e postare serve il telefono giusto', () => {
-    const s = nuovo({ partner: { nome: 'Asia', affetto: 50, giorni: 1 } });
-    expect(actionBlocked(s, 'chatta_partner')).toMatch(/telefono/);
+    const s = nuovo({ partner: tipa() });
+    expect(actionBlocked(s, 'scrivi_partner')).toMatch(/telefono/);
     expect(actionBlocked(s, 'social')).toMatch(/smartphone/);
     const conTel = { ...s, inventario: ['conchiglia'] };
-    expect(actionBlocked(conTel, 'chatta_partner')).toBeNull();
+    expect(actionBlocked(conTel, 'scrivi_partner')).toBeNull();
     expect(actionBlocked(conTel, 'social')).toMatch(/smartphone/);
     expect(actionBlocked({ ...s, inventario: ['smartphone'] }, 'social')).toBeNull();
   });
@@ -140,7 +156,7 @@ describe('azioni', () => {
       day: 5,
       soldi: 500,
       inventario: ['smartphone'],
-      partner: { nome: 'Asia', affetto: 50, giorni: 3 },
+      partner: tipa({ giorni: 3 }),
       motorino: scooter({ condizione: 50 }),
       lavoro: { id: 'pizzeria', ultimoTurno: 1 },
     });
@@ -245,7 +261,7 @@ describe('fine giornata', () => {
   });
 
   it('il partner trascurato alla fine ti molla', () => {
-    const { state } = sleep(nuovo({ day: 6, partner: { nome: 'Giada', affetto: 3, giorni: 10 } }), always(0.99));
+    const { state } = sleep(nuovo({ day: 6, partner: tipa({ nome: 'Giada', affetto: 3, giorni: 10 }) }), always(0.99));
     expect(state.partner).toBeNull();
     expect(state.exPartners).toBe(1);
   });
@@ -262,6 +278,60 @@ describe('fine giornata', () => {
     const { state } = sleep(nuovo({ day: LAST_DAY }), always(0.99));
     expect(state.finito).toBe(true);
     expect(actionBlocked(state, 'piazzetta')).not.toBeNull();
+  });
+});
+
+describe('la tipa', () => {
+  it('ogni settimana ci sono 4 persone diverse, stabili per tutta la settimana', () => {
+    const a = candidati(nuovo({ day: 1 }));
+    expect(a).toHaveLength(4);
+    expect(new Set(a.map((p) => p.nome)).size).toBe(4);
+    expect(candidati(nuovo({ day: 5 }))).toEqual(a);
+    expect(candidati(nuovo({ day: 8 }))).not.toEqual(a);
+    a.forEach((p) => expect(p.genere).toBe('f'));
+    candidati(nuovo({ preferenza: 'ragazzi' })).forEach((p) => expect(p.genere).toBe('m'));
+  });
+
+  it('più sei figo rispetto a lei, più è facile', () => {
+    const p = candidati(nuovo())[3];
+    expect(chanceConquista(nuovo({ figo: 10 }), p)).toBeLessThan(chanceConquista(nuovo({ figo: 90 }), p));
+  });
+
+  it('se ti dice sì vi mettete insieme, se dice no non puoi riprovarci per una settimana', () => {
+    const si = provaci(nuovo(), 0, always(0)).state;
+    expect(si.partner?.nome).toBe(candidati(nuovo())[0].nome);
+    expect(si.energia).toBe(100 - 15);
+    expect(provaciBlocked(si, 1)).toMatch(/già qualcuno/);
+
+    const no = provaci(nuovo(), 2, always(0.99)).state;
+    expect(no.partner).toBeNull();
+    expect(provaciBlocked(no, 2)).toMatch(/di no/);
+    expect(provaciBlocked(no, 1)).toBeNull();
+    expect(provaciBlocked({ ...no, day: 8 }, 2)).toBeNull();
+  });
+
+  it('le azioni di coppia si fanno una volta al giorno e il gusto giusto vale doppio', () => {
+    const s = nuovo({ partner: tipa({ gusto: 'romantico', affetto: 40 }) });
+    const cinema = performAction(s, 'cinema_partner', always(0.5)).state;
+    expect(cinema.partner?.affetto).toBe(60);
+    expect(actionBlocked(cinema, 'cinema_partner')).toMatch(/appiccicoso/);
+    const pizza = performAction(s, 'pizza_partner', always(0.5)).state;
+    expect(pizza.partner?.affetto).toBe(52);
+    expect(actionBlocked({ ...cinema, day: cinema.day + 1 }, 'cinema_partner')).toBeNull();
+  });
+
+  it('un partner figo ti dà prestigio, e presentarlo alla compagnia ancora di più', () => {
+    const s = nuovo({ partner: tipa({ figo: 80 }) });
+    expect(figosita(s)).toBe(10 + 8);
+    const presentata = performAction(s, 'presenta_partner', always(0.5)).state;
+    expect(presentata.figo).toBeGreaterThan(s.figo);
+    expect(actionBlocked(presentata, 'presenta_partner')).toMatch(/già/);
+  });
+
+  it('se diventi molto meno figo di lei, si stanca prima', () => {
+    const pari = sleep(nuovo({ day: 6, figo: 60, partner: tipa({ figo: 50 }) }), always(0.99)).state;
+    const distante = sleep(nuovo({ day: 6, figo: 10, partner: tipa({ figo: 90 }) }), always(0.99)).state;
+    expect(distante.partner!.affetto).toBeLessThan(pari.partner!.affetto);
   });
 });
 
@@ -312,7 +382,7 @@ describe('eventi', () => {
       figo: 60,
       inventario: ['conchiglia'],
       exPartners: 1,
-      partner: { nome: 'Thomas', affetto: 50, giorni: 30 },
+      partner: tipa({ nome: 'Thomas', genere: 'm', giorni: 30 }),
       motorino: scooter({ condizione: 30, truccato: true }),
       lavoro: { id: 'scarpe', ultimoTurno: 29 },
     });

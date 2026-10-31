@@ -1,5 +1,5 @@
 import { ITEMS, MOTORINI } from './items';
-import { GameState, Genere, Materia, Outcome, Preferenza, Rng, StatKey } from './types';
+import { GameState, Genere, Gusto, Materia, Outcome, Partner, Persona, Preferenza, Rng, StatKey } from './types';
 
 export const MAX_LOG = 30;
 
@@ -26,7 +26,7 @@ const votiIniziali = (): Record<Materia, number> => ({
 
 export function newGame(nome: string, genere: Genere, preferenza: Preferenza): GameState {
   return {
-    version: 2,
+    version: 3,
     nome: nome.trim() || 'Giargia',
     genere,
     preferenza,
@@ -43,6 +43,7 @@ export function newGame(nome: string, genere: Genere, preferenza: Preferenza): G
     motorino: null,
     partner: null,
     exPartners: 0,
+    rifiuti: [],
     lavoro: null,
     richiestaSoldiDay: -99,
     pendingEventId: null,
@@ -53,21 +54,31 @@ export function newGame(nome: string, genere: Genere, preferenza: Preferenza): G
 
 /** Porta un salvataggio vecchio alla versione attuale, o ritorna null se non è valido. */
 export function migrate(raw: unknown): GameState | null {
-  const s = raw as Record<string, unknown> | null;
-  if (!s || typeof s !== 'object') return null;
-  if (s.version === 2) return s as unknown as GameState;
+  let s = raw as any;
+  if (!s || typeof s !== 'object' || ![1, 2, 3].includes(s.version)) return null;
   if (s.version === 1) {
-    const old = s as unknown as Omit<GameState, 'version' | 'genere' | 'voti' | 'lavoro'>;
-    return {
-      ...old,
+    s = {
+      ...s,
       version: 2,
       genere: 'm',
       voti: votiIniziali(),
       lavoro: null,
-      motorino: old.motorino ? { ...old.motorino, benzina: old.motorino.benzina ?? 100 } : null,
+      motorino: s.motorino ? { ...s.motorino, benzina: s.motorino.benzina ?? 100 } : null,
     };
   }
-  return null;
+  if (s.version === 2) {
+    const p = s.partner as { nome: string; affetto: number; giorni: number } | null;
+    const genere: Genere = NOMI_RAGAZZI.includes(p?.nome ?? '') ? 'm' : 'f';
+    s = {
+      ...s,
+      version: 3,
+      rifiuti: [],
+      partner: p
+        ? { ...p, genere, emoji: AVATAR[genere][0], figo: 40, gusto: 'romantico', fatto: {}, presentato: false }
+        : null,
+    };
+  }
+  return s as GameState;
 }
 
 /** Sceglie la forma maschile o femminile di una parola. */
@@ -146,9 +157,9 @@ export function hasSmartphone(s: GameState): boolean {
   return s.inventario.includes('smartphone');
 }
 
-/** Figosità totale: base + vestiti + motorino. */
+/** Figosità totale: base + vestiti + motorino + partner. */
 export function figosita(s: GameState): number {
-  return clamp(s.figo + itemsBonus(s) + motorinoBonus(s));
+  return clamp(s.figo + itemsBonus(s) + motorinoBonus(s) + partnerBonus(s));
 }
 
 export function titoloGiargia(s: GameState): string {
@@ -164,10 +175,106 @@ export function pick<T>(list: readonly T[], rng: Rng): T {
   return list[Math.floor(rng() * list.length) % list.length];
 }
 
-export function randomPartnerName(p: Preferenza, rng: Rng): string {
-  if (p === 'ragazze') return pick(NOMI_RAGAZZE, rng);
-  if (p === 'ragazzi') return pick(NOMI_RAGAZZI, rng);
-  return pick([...NOMI_RAGAZZE, ...NOMI_RAGAZZI], rng);
+const AVATAR: Record<Genere, string[]> = {
+  f: ['👩', '👱‍♀️', '👩‍🦰', '👩‍🦱', '👧', '👩‍🦳'],
+  m: ['👨', '👱‍♂️', '👨‍🦰', '👨‍🦱', '👦', '🧔'],
+};
+
+export const GUSTI: Record<Gusto, { emoji: string; label: string; descrizione: string }> = {
+  romantico: { emoji: '🌹', label: 'Romantic', descrizione: 'Va matta per i regali e il cinema' },
+  festaiolo: { emoji: '🪩', label: 'Festaiol', descrizione: 'Vuole uscire: pizza, disco, compagnia' },
+  chiacchierone: { emoji: '💬', label: 'Chiacchieron', descrizione: 'Vive di messaggi e vocali' },
+  motori: { emoji: '🛵', label: 'Motori', descrizione: 'Il giro in motorino è tutto' },
+};
+
+/** Il gusto declinato per la persona: “Romantica”, “Festaiolo”… */
+export function gustoLabel(p: Persona): string {
+  const l = GUSTI[p.gusto].label;
+  return p.gusto === 'motori' ? l : l + (p.genere === 'f' ? 'a' : 'o');
+}
+
+/** Forma maschile o femminile per il partner. */
+export function gp(p: Persona, m: string, f: string): string {
+  return p.genere === 'f' ? f : m;
+}
+
+/** “la tipa” o “il tipo”, a seconda di chi ti piace. */
+export function nomeRuolo(pref: Preferenza): string {
+  return pref === 'ragazze' ? 'Tipa' : pref === 'ragazzi' ? 'Tipo' : 'Amore';
+}
+
+function generePer(pref: Preferenza, rng: Rng): Genere {
+  if (pref === 'ragazze') return 'f';
+  if (pref === 'ragazzi') return 'm';
+  return rng() < 0.5 ? 'f' : 'm';
+}
+
+export function creaPersona(pref: Preferenza, rng: Rng, figo = 20 + Math.floor(rng() * 70)): Persona {
+  const genere = generePer(pref, rng);
+  return {
+    nome: pick(genere === 'f' ? NOMI_RAGAZZE : NOMI_RAGAZZI, rng),
+    genere,
+    emoji: pick(AVATAR[genere], rng),
+    figo,
+    gusto: pick(Object.keys(GUSTI) as Gusto[], rng),
+  };
+}
+
+export function nuovoPartner(p: Persona, affetto: number): Partner {
+  return { ...p, affetto, giorni: 0, fatto: {}, presentato: false };
+}
+
+/** Generatore deterministico: le persone in giro restano le stesse per tutta la settimana. */
+function seededRng(seed: number): Rng {
+  let x = seed >>> 0;
+  return () => {
+    x = (x + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(x ^ (x >>> 15), 1 | x);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function settimana(day: number): number {
+  return Math.floor((day - 1) / 7);
+}
+
+export function candidati(s: GameState): Persona[] {
+  const prefSeed = { ragazze: 1, ragazzi: 2, tutti: 3 }[s.preferenza];
+  const rng = seededRng(settimana(s.day) * 7919 + prefSeed * 104729 + s.nome.length);
+  const fasce = [25, 45, 65, 85];
+  const out: Persona[] = [];
+  for (const base of fasce) {
+    let p = creaPersona(s.preferenza, rng, base + Math.floor(rng() * 12) - 6);
+    // Niente omonimi nella stessa settimana.
+    for (let i = 0; i < 5 && out.some((o) => o.nome === p.nome); i++) p = creaPersona(s.preferenza, rng, p.figo);
+    out.push(p);
+  }
+  return out;
+}
+
+export function chiaveRifiuto(s: GameState, p: Persona): string {
+  return `${settimana(s.day)}:${p.nome}`;
+}
+
+/** Ti va bene se sei almeno figo quanto lei; se hai quello che le piace, è più facile. */
+export function chanceConquista(s: GameState, p: Persona): number {
+  let c = 0.45 + (figosita(s) - p.figo) / 80;
+  if (p.gusto === 'motori' && motorinoFunziona(s)) c += 0.15;
+  if (p.gusto === 'chiacchierone' && hasTelefono(s)) c += 0.1;
+  return Math.max(0.05, Math.min(0.9, c));
+}
+
+export function difficolta(c: number): { label: string; color: string } {
+  if (c >= 0.7) return { label: 'Facile', color: '#D8F5E3' };
+  if (c >= 0.45) return { label: 'Ci puoi stare', color: '#FFF0C2' };
+  if (c >= 0.2) return { label: 'Difficile', color: '#FFE3C2' };
+  return { label: 'Fuori portata', color: '#FFE0E3' };
+}
+
+/** Un partner molto figo ti dà prestigio. */
+export function partnerBonus(s: GameState): number {
+  return s.partner ? Math.round(s.partner.figo / 10) : 0;
 }
 
 export function chance(rng: Rng, p: number): boolean {

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { formatDay, LAST_DAY } from '../../game/calendar';
 import { LAVORI_BY_ID, MOTORINI } from '../../game/items';
-import { figosita, titoloGiargia } from '../../game/state';
+import { figosita, nomeRuolo, titoloGiargia } from '../../game/state';
 import { GameState } from '../../game/types';
 import { Bar, Button, Card, Chip, Sheet, StatRow } from '../components';
 import { avatarFor, colors } from '../theme';
@@ -61,7 +61,7 @@ export function HomeScreen({ state, onReset }: { state: GameState; onReset: () =
           )}
         </Card>
         <Card style={styles.half} color={p ? '#FFC2D4' : colors.card}>
-          <Text style={styles.tileEmoji}>{p ? '💘' : '🙃'}</Text>
+          <Text style={styles.tileEmoji}>{p ? p.emoji : '🙃'}</Text>
           <Text style={styles.tileTitle} numberOfLines={2}>
             {p ? p.nome : 'Single'}
           </Text>
@@ -73,7 +73,7 @@ export function HomeScreen({ state, onReset }: { state: GameState; onReset: () =
               </Text>
             </>
           ) : (
-            <Text style={styles.tileSub}>Prova a rimorchiare nelle Uscite</Text>
+            <Text style={styles.tileSub}>Trova qualcuno nella scheda {nomeRuolo(state.preferenza)}</Text>
           )}
         </Card>
       </View>

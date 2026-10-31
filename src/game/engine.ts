@@ -2,7 +2,21 @@ import { ACTIONS_BY_ID } from './actions';
 import { BEFANA, dayOfWeek, FINE_QUADRIMESTRE, festa, isSchoolDay, LAST_DAY, NATALE } from './calendar';
 import { EVENTS, EVENTS_BY_ID } from './events';
 import { COSTO_TRUCCO, costoPieno, costoRiparazione, ITEMS, LAVORI_BY_ID } from './items';
-import { addLog, applyDelta, figosita, g, MATERIE, o, outcome } from './state';
+import {
+  addLog,
+  applyDelta,
+  candidati,
+  chanceConquista,
+  chiaveRifiuto,
+  figosita,
+  g,
+  gp,
+  MATERIE,
+  nuovoPartner,
+  o,
+  outcome,
+  settimana,
+} from './state';
 import { GameEvent, GameState, Materia, Outcome, Rng } from './types';
 
 const fail = (s: GameState, text: string): Outcome => ({ state: s, messages: [text] });
@@ -67,6 +81,33 @@ export function truccaMotorino(s: GameState): Outcome {
   return outcome(next, 'Marmitta nuova: ora si sente da Milano. Occhio ai vigili!', { soldi: -COSTO_TRUCCO });
 }
 
+export const ENERGIA_CORTEGGIO = 15;
+
+/** Perché non puoi provarci con questa persona, oppure null. */
+export function provaciBlocked(s: GameState, index: number): string | null {
+  const p = candidati(s)[index];
+  if (!p) return 'Persona sconosciuta';
+  if (s.finito) return 'L’anno è finito';
+  if (s.pendingEventId) return 'Prima rispondi all’evento';
+  if (s.partner) return 'Hai già qualcuno, giargia';
+  if (s.rifiuti.includes(chiaveRifiuto(s, p))) return `${p.nome} ti ha già detto di no questa settimana`;
+  if (s.energia < ENERGIA_CORTEGGIO) return `Sei troppo stanc${o(s)}`;
+  return null;
+}
+
+export function provaci(s: GameState, index: number, rng: Rng): Outcome {
+  const reason = provaciBlocked(s, index);
+  if (reason) return fail(s, reason);
+  const p = candidati(s)[index];
+  const stanco = applyDelta(s, { energia: -ENERGIA_CORTEGGIO });
+  if (rng() < chanceConquista(s, p)) {
+    return outcome({ ...stanco, partner: nuovoPartner(p, 40) }, `${p.nome} ti ha detto di sì! Siete ufficialmente insieme. 💘`, { figo: 3 });
+  }
+  // I rifiuti valgono per la settimana in corso: quelli vecchi si possono dimenticare.
+  const rifiuti = [...stanco.rifiuti.filter((k) => k.startsWith(`${settimana(s.day)}:`)), chiaveRifiuto(s, p)];
+  return outcome({ ...stanco, rifiuti }, `Ci hai provato con ${p.nome}: due di picche. ${gp(p, 'Lui', 'Lei')} punta più in alto.`, { figo: -2 });
+}
+
 export function fillTank(s: GameState): Outcome {
   if (!s.motorino) return fail(s, 'Non hai un motorino');
   if (s.motorino.benzina >= 100) return fail(s, 'Il serbatoio è già pieno');
@@ -120,7 +161,9 @@ export function sleep(s: GameState, rng: Rng): Outcome {
   }
 
   if (next.partner) {
-    const affetto = next.partner.affetto - 3;
+    // Se diventi molto meno figo del tuo partner, si stanca prima.
+    const distacco = next.partner.figo - figosita(next) > 25 ? 3 : 0;
+    const affetto = next.partner.affetto - 3 - distacco;
     if (affetto <= 0) {
       const nome = next.partner.nome;
       next = applyDelta({ ...next, partner: null, exPartners: next.exPartners + 1 }, { figo: -5 });

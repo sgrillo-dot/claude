@@ -2,25 +2,48 @@ import { festa, isDiscoNight, isSchoolDay } from './calendar';
 import { LAVORI, LAVORI_BY_ID } from './items';
 import {
   chance,
+  creaPersona,
   figosita,
   g,
+  gp,
   hasSmartphone,
   hasTelefono,
+  motorinoFunziona,
+  nuovoPartner,
   o,
   outcome,
   pick,
-  randomPartnerName,
   registraVoto,
 } from './state';
-import { Action, GameState } from './types';
+import { Action, GameState, Gusto, Outcome, Partner, StatKey } from './types';
 
 const soloGiorniDiScuola = (s: GameState) => {
   if (!isSchoolDay(s.day)) return festa(s.day) ? `${festa(s.day)}: niente scuola!` : 'Oggi non c’è scuola';
   return s.scuolaOggi ? 'Per oggi la scuola è andata' : null;
 };
 
-const serveSingle = (s: GameState) => (s.partner ? 'Hai già qualcuno, giargia' : null);
 const servePartner = (s: GameState) => (s.partner ? null : 'Prima trova qualcuno con cui uscire');
+
+/** Le azioni di coppia si fanno una volta al giorno: non essere appiccicoso. */
+const coppia = (s: GameState, id: string) =>
+  servePartner(s) ?? (s.partner!.fatto[id] === s.day ? `Per oggi basta, non essere appiccicos${o(s)}` : null);
+
+function coccola(
+  s: GameState,
+  id: string,
+  affetto: number,
+  gustoGiusto: Gusto,
+  testo: (p: Partner) => string,
+  delta: Partial<Record<StatKey, number>> = {},
+): Outcome {
+  const p = s.partner!;
+  const centrato = p.gusto === gustoGiusto;
+  const next = {
+    ...s,
+    partner: { ...p, affetto: Math.min(100, p.affetto + (centrato ? affetto * 2 : affetto)), fatto: { ...p.fatto, [id]: s.day } },
+  };
+  return outcome(next, testo(p) + (centrato ? ` ${gp(p, 'Lui', 'Lei')} va pazz${gp(p, 'o', 'a')} per queste cose! 😍` : ''), delta);
+}
 
 export const ACTIONS: Action[] = [
   // ---------------------------------------------------------------- Scuola
@@ -154,9 +177,9 @@ export const ACTIONS: Action[] = [
         });
       }
       if (!s.partner && chance(rng, 0.12 + figosita(s) / 400)) {
-        const nome = randomPartnerName(s.preferenza, rng);
-        const next = { ...s, partner: { nome, affetto: 45, giorni: 0 } };
-        return outcome(next, `Lento con ${nome}… e alla fine vi siete messi insieme! 💘`, { figo: 6 });
+        const p = creaPersona(s.preferenza, rng, Math.max(15, Math.min(90, figosita(s) + Math.floor(rng() * 20) - 10)));
+        const next = { ...s, partner: nuovoPartner(p, 45) };
+        return outcome(next, `Lento con ${p.nome}… e alla fine vi siete messi insieme! 💘`, { figo: 6 });
       }
       return outcome(s, 'Hai ballato fino alla chiusura. Domani non ti alzi.', { figo: 6 });
     },
@@ -205,72 +228,87 @@ export const ACTIONS: Action[] = [
       return outcome(s, 'Storia postata. Un po’ di like, niente male.', { figo: 1 });
     },
   },
+  // ---------------------------------------------------------------- Amore
   {
-    id: 'corteggia',
-    tab: 'uscite',
-    emoji: '😏',
-    titolo: 'Prova a rimorchiare',
-    descrizione: 'Più figosità hai, più è facile.',
-    energia: 15,
-    soldi: 0,
-    bloccata: serveSingle,
-    esegui: (s, rng) => {
-      const nome = randomPartnerName(s.preferenza, rng);
-      if (chance(rng, 0.1 + figosita(s) / 130)) {
-        const next = { ...s, partner: { nome, affetto: 40, giorni: 0 } };
-        return outcome(next, `${nome} ti ha detto di sì! Siete ufficialmente insieme. 💘`, { figo: 4 });
-      }
-      return outcome(s, `Hai provato con ${nome}: due di picche. Succede ai migliori.`, { figo: -2 });
-    },
-  },
-  {
-    id: 'esci_partner',
-    tab: 'uscite',
-    emoji: '🍕',
-    titolo: 'Pizza romantica',
-    descrizione: 'Paghi tu, ovviamente.',
-    energia: 20,
-    soldi: 15,
-    bloccata: servePartner,
-    esegui: (s) => {
-      const p = s.partner!;
-      const next = { ...s, partner: { ...p, affetto: Math.min(100, p.affetto + 15) } };
-      return outcome(next, `Pizza e passeggiata con ${p.nome}. Che serata.`, { figo: 1 });
-    },
-  },
-  {
-    id: 'chatta_partner',
-    tab: 'uscite',
+    id: 'scrivi_partner',
+    tab: 'amore',
     emoji: '💬',
-    titolo: 'Scrivi al tuo amore',
-    descrizione: 'Messaggini e cuoricini. Serve un telefono.',
+    titolo: 'Scrivi messaggi',
+    descrizione: 'Cuoricini, vocali e buongiornissimo. Serve un telefono.',
     energia: 5,
     soldi: 1,
-    bloccata: (s) => servePartner(s) ?? (hasTelefono(s) ? null : 'Ti serve un telefono'),
+    bloccata: (s) => coppia(s, 'scrivi_partner') ?? (hasTelefono(s) ? null : 'Ti serve un telefono'),
+    esegui: (s) => coccola(s, 'scrivi_partner', 6, 'chiacchierone', (p) => `Un’ora di messaggi con ${p.nome}. Credito finito, cuore pieno.`),
+  },
+  {
+    id: 'pizza_partner',
+    tab: 'amore',
+    emoji: '🍕',
+    titolo: 'Pizza insieme',
+    descrizione: 'Margherita e patatine. Paghi tu, ovviamente.',
+    energia: 20,
+    soldi: 15,
+    bloccata: (s) => coppia(s, 'pizza_partner'),
+    esegui: (s) => coccola(s, 'pizza_partner', 12, 'festaiolo', (p) => `Pizza e passeggiata con ${p.nome}. Che serata.`, { figo: 1 }),
+  },
+  {
+    id: 'cinema_partner',
+    tab: 'amore',
+    emoji: '🎬',
+    titolo: 'Cinema',
+    descrizione: 'Ultima fila, popcorn gigante.',
+    energia: 15,
+    soldi: 12,
+    bloccata: (s) => coppia(s, 'cinema_partner'),
+    esegui: (s) => coccola(s, 'cinema_partner', 10, 'romantico', (p) => `Film romantico con ${p.nome}. Del film non ricordate niente.`),
+  },
+  {
+    id: 'giro_partner',
+    tab: 'amore',
+    emoji: '🛵',
+    titolo: 'Giro in motorino',
+    descrizione: 'In due sul motorino, il vento nei capelli.',
+    energia: 10,
+    soldi: 0,
+    bloccata: (s) => coppia(s, 'giro_partner') ?? (motorinoFunziona(s) ? null : 'Serve un motorino che va'),
     esegui: (s) => {
-      const p = s.partner!;
-      const next = { ...s, partner: { ...p, affetto: Math.min(100, p.affetto + 7) } };
-      return outcome(next, `Un’ora di messaggi con ${p.nome}. Credito finito, cuore pieno.`);
+      const m = s.motorino!;
+      const conBenzina = { ...s, motorino: { ...m, benzina: Math.max(0, m.benzina - 10) } };
+      return coccola(conBenzina, 'giro_partner', 12, 'motori', (p) => `Giro al lago con ${p.nome} dietro. Tutta la città vi ha visti.`, { figo: 2 });
     },
   },
   {
     id: 'regalo_partner',
-    tab: 'uscite',
+    tab: 'amore',
     emoji: '🎁',
     titolo: 'Fai un regalo',
     descrizione: 'Un peluche gigante non sbaglia mai.',
     energia: 5,
     soldi: 25,
-    bloccata: servePartner,
+    bloccata: (s) => coppia(s, 'regalo_partner'),
+    esegui: (s) => coccola(s, 'regalo_partner', 18, 'romantico', (p) => `${p.nome} ha adorato il peluche. Ti scrive “sei il top”.`),
+  },
+  {
+    id: 'presenta_partner',
+    tab: 'amore',
+    emoji: '👯',
+    titolo: 'Presenta alla compagnia',
+    descrizione: 'Più è figo, più la compagnia ti rispetta. Una volta sola.',
+    energia: 10,
+    soldi: 0,
+    bloccata: (s) => servePartner(s) ?? (s.partner!.presentato ? 'L’hai già presentato alla compagnia' : null),
     esegui: (s) => {
       const p = s.partner!;
-      const next = { ...s, partner: { ...p, affetto: Math.min(100, p.affetto + 25) } };
-      return outcome(next, `${p.nome} ha adorato il peluche. Ti scrive “sei il top”.`);
+      const next = { ...s, partner: { ...p, presentato: true, affetto: Math.min(100, p.affetto + 8) } };
+      const bonus = Math.round(p.figo / 12);
+      if (p.figo >= 60) return outcome(next, `La compagnia è a bocca aperta: “Ma come hai fatto con ${p.nome}?!”`, { figo: bonus });
+      if (p.figo >= 35) return outcome(next, `${p.nome} piace a tutti. Approvazione della compagnia.`, { figo: bonus });
+      return outcome(next, `La compagnia saluta ${p.nome} con educazione. E poi ridacchia.`, { figo: 1 });
     },
   },
   {
     id: 'lascia_partner',
-    tab: 'uscite',
+    tab: 'amore',
     emoji: '💔',
     titolo: 'Chiudi la storia',
     descrizione: 'Con un vocale, come si fa oggi.',

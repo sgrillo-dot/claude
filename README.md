@@ -9,7 +9,8 @@ Un anno scolastico per diventare il più figo del quartiere. Gioco mobile per iO
 - I giorni feriali scegli cosa fare a scuola. Se non scegli niente, prendi un'assenza. Durante feste e vacanze non c'è scuola.
 - Sei materie con i voti sul **registro**: arrivano con interrogazioni e verifiche, e dipendono da quanto studi.
 - Compra vestiti, accessori, telefoni e motorini per alzare la **figosità**. Il motorino va riparato e ha bisogno di benzina.
-- Trova qualcuno con cui metterti insieme, e non trascurarlo, altrimenti ti molla. Con il telefono puoi scrivergli.
+- Scheda **Tipa** (o Tipo, o Amore, a seconda di chi ti piace): ogni settimana 4 persone nuove, ognuna con la sua figosità e i suoi gusti. Più sei figo rispetto a loro, più è facile; chi ti dice di no non si riprova fino alla settimana dopo.
+- In coppia: messaggi, pizza, cinema, giro in motorino, regali, presentazione alla compagnia. Le azioni che piacciono al partner valgono doppio. Un partner figo ti dà prestigio, ma se diventi molto meno figo si stanca prima; se lo trascuri ti molla.
 - Lavoretti al volo o un **lavoro fisso**, che paga di più ma va fatto almeno una volta a settimana.
 - Il lunedì arriva la paghetta, a Natale i regali dei parenti, a fine gennaio la pagella del quadrimestre.
 - **Imprevisti** con scelte da fare: di notte, e anche di giorno in base a quello che fai (interrogazioni in classe, risse in piazzetta, clienti furiosi al lavoro…). Il pallino sulla scheda "Tu" segnala le novità nel diario.

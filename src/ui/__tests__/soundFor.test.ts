@@ -1,4 +1,4 @@
-import { buyItem, fillTank, performAction } from '../../game/engine';
+import { buyItem, fillTank, performAction, provaci } from '../../game/engine';
 import { newGame } from '../../game/state';
 import { GameState } from '../../game/types';
 import { soundFor } from '../soundFor';
@@ -14,7 +14,7 @@ describe('soundFor', () => {
 
   it('cuore quando ti metti insieme a qualcuno', () => {
     const s = base();
-    expect(soundFor(s, performAction(s, 'corteggia', always(0)).state)).toBe('love');
+    expect(soundFor(s, provaci(s, 0, always(0)).state)).toBe('love');
   });
 
   it('motorino quando lo compri o fai benzina', () => {

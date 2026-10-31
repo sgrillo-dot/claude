@@ -9,7 +9,8 @@ import {
   motorinoFunziona,
   o,
   outcome,
-  randomPartnerName,
+  creaPersona,
+  nuovoPartner,
   registraVoto,
   votoInterrogazione,
 } from './state';
@@ -396,7 +397,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Scenata di gelosia',
     testo: (s) => `${s.partner?.nome} ha visto che hai messo like a una foto. “E questa persona chi è?!”`,
     peso: 2,
-    dopo: ['social', 'chatta_partner', 'disco'],
+    dopo: ['social', 'scrivi_partner', 'disco'],
     condizione: (s) => !!s.partner,
     scelte: [
       { label: 'Chiedo scusa', esito: (s) => outcome(conAffetto(s, 5), 'Scuse accettate. Per ora.', { figo: -1 }) },
@@ -453,8 +454,8 @@ export const EVENTS: GameEvent[] = [
       {
         label: 'Ci riproviamo',
         esito: (s, rng) => {
-          const nome = randomPartnerName(s.preferenza, rng);
-          return outcome({ ...s, partner: { nome, affetto: 50, giorni: 0 } }, `Tu e ${nome} tornate insieme. Minestra riscaldata, ma buona.`, {
+          const p = creaPersona(s.preferenza, rng);
+          return outcome({ ...s, partner: nuovoPartner(p, 50) }, `Tu e ${p.nome} tornate insieme. Minestra riscaldata, ma buona.`, {
             figo: 2,
           });
         },

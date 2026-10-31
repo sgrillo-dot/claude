@@ -12,6 +12,7 @@ const TITLES: Record<ActionTab, { titolo: string; color: string }> = {
   scuola: { titolo: 'Scuola', color: '#CFE0FF' },
   uscite: { titolo: 'Uscite', color: '#FFD6E2' },
   lavoro: { titolo: 'Lavoretti', color: '#D8F5E3' },
+  amore: { titolo: 'Amore', color: '#FFD6E2' },
 };
 
 function hintFor(tab: ActionTab, s: GameState): string {
@@ -25,14 +26,22 @@ function hintFor(tab: ActionTab, s: GameState): string {
 }
 
 export function ActionsScreen({ tab, state, onAct }: { tab: ActionTab; state: GameState; onAct: (id: string) => void }) {
-  const actions = ACTIONS.filter((a) => a.tab === tab);
   const meta = TITLES[tab];
-
   return (
     <View style={styles.wrap}>
       <SectionTitle hint={hintFor(tab, state)}>{meta.titolo}</SectionTitle>
       {tab === 'scuola' ? <Registro state={state} /> : null}
-      {actions.map((a) => {
+      <ActionCards tab={tab} state={state} onAct={onAct} />
+    </View>
+  );
+}
+
+/** Le schede delle azioni di una sezione, con costi e motivo del blocco. */
+export function ActionCards({ tab, state, onAct }: { tab: ActionTab; state: GameState; onAct: (id: string) => void }) {
+  const meta = TITLES[tab];
+  return (
+    <>
+      {ACTIONS.filter((a) => a.tab === tab).map((a) => {
         const blocked = actionBlocked(state, a.id);
         return (
           <Pressable
@@ -66,7 +75,7 @@ export function ActionsScreen({ tab, state, onAct }: { tab: ActionTab; state: Ga
           </Pressable>
         );
       })}
-    </View>
+    </>
   );
 }
 

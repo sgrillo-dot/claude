@@ -8,10 +8,24 @@ export type Materia = 'italiano' | 'matematica' | 'inglese' | 'storia' | 'scienz
 
 export type Rng = () => number;
 
-export interface Partner {
+/** Cosa piace di più al partner: le azioni giuste valgono il doppio. */
+export type Gusto = 'romantico' | 'festaiolo' | 'chiacchierone' | 'motori';
+
+export interface Persona {
   nome: string;
+  genere: Genere;
+  emoji: string;
+  /** La sua figosità: più è alta, più è difficile conquistarla e più ti dà prestigio. */
+  figo: number;
+  gusto: Gusto;
+}
+
+export interface Partner extends Persona {
   affetto: number;
   giorni: number;
+  /** Giorno in cui hai fatto ogni azione di coppia, per farne una al giorno. */
+  fatto: Record<string, number>;
+  presentato: boolean;
 }
 
 export interface Motorino {
@@ -33,7 +47,7 @@ export interface LogEntry {
 }
 
 export interface GameState {
-  version: 2;
+  version: 3;
   nome: string;
   genere: Genere;
   preferenza: Preferenza;
@@ -55,6 +69,8 @@ export interface GameState {
   motorino: Motorino | null;
   partner: Partner | null;
   exPartners: number;
+  /** Chi ti ha già detto di no questa settimana. */
+  rifiuti: string[];
   lavoro: Lavoro | null;
   /** Ultimo giorno in cui hai chiesto soldi extra ai genitori. */
   richiestaSoldiDay: number;
@@ -83,7 +99,7 @@ export interface Item {
   consumabile?: Partial<Record<StatKey, number>>;
 }
 
-export type ActionTab = 'scuola' | 'uscite' | 'lavoro';
+export type ActionTab = 'scuola' | 'uscite' | 'lavoro' | 'amore';
 
 export interface Action {
   id: string;

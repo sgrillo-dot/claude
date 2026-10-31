@@ -4,23 +4,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatDay } from '../game/calendar';
 import { pendingEvent } from '../game/engine';
+import { nomeRuolo } from '../game/state';
 import { choiceLabel } from '../game/events';
 import { GameState } from '../game/types';
 import { Button, DeltaChips, Sheet, tap } from './components';
 import { ActionsScreen } from './screens/ActionsScreen';
+import { AmoreScreen } from './screens/AmoreScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { ShopScreen } from './screens/ShopScreen';
 import { play } from './sound';
 import { colors, hardShadow } from './theme';
 import { Game } from './useGame';
 
-type Tab = 'home' | 'scuola' | 'shop' | 'uscite' | 'lavoro';
+type Tab = 'home' | 'scuola' | 'shop' | 'uscite' | 'amore' | 'lavoro';
 
 const TABS: { id: Tab; emoji: string; label: string }[] = [
   { id: 'home', emoji: '🏠', label: 'Tu' },
   { id: 'scuola', emoji: '📚', label: 'Scuola' },
   { id: 'shop', emoji: '🛍️', label: 'Negozi' },
   { id: 'uscite', emoji: '🌃', label: 'Uscite' },
+  { id: 'amore', emoji: '❤️', label: 'Amore' },
   { id: 'lavoro', emoji: '💼', label: 'Lavoro' },
 ];
 
@@ -90,6 +93,7 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
         {tab === 'scuola' || tab === 'uscite' || tab === 'lavoro' ? (
           <ActionsScreen tab={tab} state={state} onAct={game.act} />
         ) : null}
+        {tab === 'amore' ? <AmoreScreen state={state} onAct={game.act} onProvaci={game.provaci} /> : null}
         {tab === 'shop' ? (
           <ShopScreen state={state} onBuy={game.buy} onRepair={game.repair} onTrucca={game.trucca} onFillTank={game.fillTank} />
         ) : null}
@@ -103,7 +107,9 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
           style={styles.sleep}
         />
         <View style={styles.tabBar} accessibilityRole="tablist">
-          {TABS.map((t) => {
+          {TABS.map((tabDef) => {
+            // La scheda dell'amore si chiama “Tipa”, “Tipo” o “Amore” a seconda di chi ti piace.
+            const t = tabDef.id === 'amore' ? { ...tabDef, label: nomeRuolo(state.preferenza) } : tabDef;
             const active = t.id === tab;
             return (
               <Pressable
