@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ import { Button, DeltaChips, Sheet, tap } from './components';
 import { ActionsScreen } from './screens/ActionsScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { ShopScreen } from './screens/ShopScreen';
+import { play } from './sound';
 import { colors, hardShadow } from './theme';
 import { Game } from './useGame';
 
@@ -29,6 +30,29 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
   const scroll = useRef<ScrollViewInstance>(null);
   const event = pendingEvent(state);
   const result = game.eventResult;
+
+  // L'imprevisto arriva un attimo dopo, così si legge prima l'esito della mossa.
+  const [shownEventId, setShownEventId] = useState<string | null>(state.pendingEventId);
+  useEffect(() => {
+    if (!state.pendingEventId) {
+      setShownEventId(null);
+      return;
+    }
+    if (state.pendingEventId === shownEventId) return;
+    const t = setTimeout(() => {
+      setShownEventId(state.pendingEventId);
+      play('event');
+    }, 1300);
+    return () => clearTimeout(t);
+  }, [state.pendingEventId, state.day]);
+
+  // Quante voci nuove ci sono nel diario dall'ultima volta che hai guardato la scheda "Tu".
+  const [seen, setSeen] = useState(state.log[0]);
+  useEffect(() => {
+    if (tab === 'home') setSeen(state.log[0]);
+  }, [tab, state.log]);
+  const seenIndex = state.log.indexOf(seen);
+  const unread = seenIndex === -1 ? state.log.length : seenIndex;
 
   const switchTab = (t: Tab) => {
     tap();
@@ -91,6 +115,11 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
                 style={[styles.tabItem, active && styles.tabItemActive]}
               >
                 <Text style={styles.tabEmoji}>{t.emoji}</Text>
+                {t.id === 'home' && unread > 0 && tab !== 'home' ? (
+                  <View style={styles.badge} accessibilityLabel={`${unread} novità nel diario`}>
+                    <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+                  </View>
+                ) : null}
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
               </Pressable>
             );
@@ -98,7 +127,7 @@ export function GameScreen({ game, state }: { game: Game; state: GameState }) {
         </View>
       </View>
 
-      <Sheet visible={!!event || !!result}>
+      <Sheet visible={(!!event && shownEventId === state.pendingEventId) || !!result}>
         {result ? (
           <>
             <Text style={styles.eventEmoji}>{result.emoji}</Text>
@@ -171,6 +200,21 @@ const styles = StyleSheet.create({
     minHeight: 52,
     justifyContent: 'center',
   },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.ink,
+    backgroundColor: colors.pink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { fontSize: 11, fontWeight: '900', color: colors.ink },
   tabItemActive: { backgroundColor: colors.yellow, borderColor: colors.ink, ...hardShadow(2) },
   tabEmoji: { fontSize: 22 },
   tabLabel: { fontSize: 11, fontWeight: '700', color: colors.muted, marginTop: 2 },

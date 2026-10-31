@@ -110,5 +110,9 @@ export interface GameEvent {
   testo: (s: GameState) => string;
   peso: number;
   condizione?: (s: GameState) => boolean;
+  /** Azioni o schede dopo cui l'evento può capitare anche di giorno. */
+  dopo?: string[];
+  /** Se vero capita solo di giorno, mai di notte. */
+  soloGiorno?: boolean;
   scelte: EventChoice[];
 }

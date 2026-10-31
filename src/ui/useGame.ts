@@ -103,7 +103,6 @@ export function useGame() {
       if (next === state) return;
       tap('success');
       play(next.finito ? 'fanfare' : 'night');
-      if (next.pendingEventId) setTimeout(() => play('event'), 900);
       showToast([`🌙 Buonanotte… ☀️ ${formatDay(next.day)}`, ...messages], statDeltas(state, next));
       setState(next);
     },

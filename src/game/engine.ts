@@ -24,7 +24,11 @@ export function performAction(s: GameState, actionId: string, rng: Rng): Outcome
   const reason = actionBlocked(s, actionId);
   if (reason) return fail(s, reason);
   const a = ACTIONS_BY_ID[actionId];
-  return a.esegui(applyDelta(s, { energia: -a.energia, soldi: -a.soldi }), rng);
+  const out = a.esegui(applyDelta(s, { energia: -a.energia, soldi: -a.soldi }), rng);
+  if (out.state.pendingEventId || rng() >= DAY_EVENT_CHANCE) return out;
+  // Imprevisto di giorno, legato a quello che hai appena fatto.
+  const e = pickEvent(out.state, rng, (ev) => !!ev.dopo?.some((d) => d === a.id || d === a.tab));
+  return e ? { ...out, state: { ...out.state, pendingEventId: e.id } } : out;
 }
 
 export function buyItem(s: GameState, itemId: string): Outcome {
@@ -72,8 +76,8 @@ export function fillTank(s: GameState): Outcome {
   return outcome(next, `Pieno fatto con ${costo}€. Profumo di miscela. ⛽`, { soldi: -costo });
 }
 
-function pickEvent(s: GameState, rng: Rng): GameEvent | null {
-  const eligible = EVENTS.filter((e) => !e.condizione || e.condizione(s));
+function pickEvent(s: GameState, rng: Rng, filtro: (e: GameEvent) => boolean): GameEvent | null {
+  const eligible = EVENTS.filter((e) => filtro(e) && (!e.condizione || e.condizione(s)));
   const total = eligible.reduce((sum, e) => sum + e.peso, 0);
   let r = rng() * total;
   for (const e of eligible) {
@@ -83,7 +87,8 @@ function pickEvent(s: GameState, rng: Rng): GameEvent | null {
   return null;
 }
 
-export const EVENT_CHANCE = 0.45;
+export const EVENT_CHANCE = 0.55;
+export const DAY_EVENT_CHANCE = 0.2;
 
 /** Fine giornata: si va a dormire e il mondo va avanti. */
 export function sleep(s: GameState, rng: Rng): Outcome {
@@ -165,7 +170,7 @@ export function sleep(s: GameState, rng: Rng): Outcome {
   }
 
   if (rng() < EVENT_CHANCE) {
-    const e = pickEvent(next, rng);
+    const e = pickEvent(next, rng, (ev) => !ev.soloGiorno);
     if (e) next = { ...next, pendingEventId: e.id };
   }
 

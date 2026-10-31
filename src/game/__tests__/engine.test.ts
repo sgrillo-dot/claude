@@ -118,7 +118,7 @@ describe('azioni', () => {
   });
 
   it('rimorchiare con successo crea un partner', () => {
-    const { state } = performAction(nuovo(), 'corteggia', always(0));
+    const state = { ...performAction(nuovo(), 'corteggia', always(0)).state, pendingEventId: null };
     expect(state.partner).not.toBeNull();
     expect(actionBlocked(state, 'corteggia')).not.toBeNull();
     expect(actionBlocked(state, 'esci_partner')).toBeNull();
@@ -262,6 +262,37 @@ describe('fine giornata', () => {
     const { state } = sleep(nuovo({ day: LAST_DAY }), always(0.99));
     expect(state.finito).toBe(true);
     expect(actionBlocked(state, 'piazzetta')).not.toBeNull();
+  });
+});
+
+describe('imprevisti di giorno', () => {
+  it('dopo un’azione può capitare un imprevisto legato a quella azione', () => {
+    const { state } = performAction(nuovo(), 'scuola_segui', always(0.1));
+    expect(['interrogazione', 'verifica']).toContain(state.pendingEventId);
+    expect(actionBlocked(state, 'piazzetta')).toMatch(/evento/);
+  });
+
+  it('di solito però non succede niente', () => {
+    expect(performAction(nuovo(), 'scuola_segui', always(0.5)).state.pendingEventId).toBeNull();
+  });
+
+  it('gli imprevisti di lavoro arrivano solo durante il turno', () => {
+    const s = nuovo({ lavoro: { id: 'pizzeria', ultimoTurno: 0 } });
+    const { state } = performAction(s, 'turno', always(0.1));
+    expect(['capo_extra', 'cliente_furioso']).toContain(state.pendingEventId);
+    expect(performAction(s, 'studia_casa', always(0.1)).state.pendingEventId).toBeNull();
+  });
+
+  it('gli eventi solo diurni non capitano mai di notte', () => {
+    const solo = EVENTS.filter((e) => e.soloGiorno);
+    expect(solo.length).toBeGreaterThanOrEqual(4);
+    solo.forEach((e) => expect(e.dopo?.length).toBeGreaterThan(0));
+    const rng = seeded(3);
+    let s = nuovo({ figo: 80, inventario: ['conchiglia'], lavoro: { id: 'pizzeria', ultimoTurno: 0 } });
+    for (let i = 0; i < 200; i++) {
+      s = sleep({ ...s, pendingEventId: null, scuolaOggi: true, finito: false, day: 2 + (i % 100) }, rng).state;
+      if (s.pendingEventId) expect(solo.map((e) => e.id)).not.toContain(s.pendingEventId);
+    }
   });
 });
 

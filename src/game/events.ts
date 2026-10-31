@@ -41,6 +41,7 @@ export const EVENTS: GameEvent[] = [
       return `Il prof di ${m.nome.toLowerCase()} scorre il registro… e si ferma sul tuo nome. ${m.emoji}`;
     },
     peso: 5,
+    dopo: ['scuola_segui', 'scuola_dormi'],
     condizione: (s) => isSchoolDay(s.day),
     scelte: [
       {
@@ -69,6 +70,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Verifica a sorpresa!',
     testo: () => 'La prof di mate entra con un sorrisetto: “Fogli protocollo sul banco.”',
     peso: 3,
+    dopo: ['scuola_segui', 'scuola_dormi'],
     condizione: (s) => isSchoolDay(s.day),
     scelte: [
       {
@@ -165,6 +167,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Banconota per terra',
     testo: () => 'Davanti al bar c’è una banconota da 10€ che svolazza.',
     peso: 2,
+    dopo: ['uscite'],
     scelte: [
       { label: 'La prendo', esito: (s) => outcome(s, 'Dieci euro gratis. Oggi è il tuo giorno.', { soldi: 10 }) },
       {
@@ -185,6 +188,7 @@ export const EVENTS: GameEvent[] = [
       return `${i.emoji} ${i.nome} a metà prezzo: solo ${prezzoSaldo(i)}€ invece di ${i.prezzo}€!`;
     },
     peso: 2,
+    dopo: ['piazzetta'],
     condizione: (s) => !!articoloInSaldo(s),
     scelte: [
       {
@@ -223,6 +227,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Telefono per terra',
     testo: () => 'Ti scivola il telefono dalla tasca. Crack. Lo schermo è una ragnatela.',
     peso: 2,
+    dopo: ['uscite'],
     condizione: hasTelefono,
     scelte: [
       {
@@ -267,6 +272,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Sfida di ballo in piazza',
     testo: () => 'La compagnia ti sfida a un balletto davanti a tutti, da postare sui social.',
     peso: 2,
+    dopo: ['piazzetta', 'disco'],
     scelte: [
       {
         label: 'Accetto la sfida',
@@ -284,6 +290,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'L’influencer del quartiere',
     testo: () => 'Quello con 10k follower ti ferma: “Bel fit! Ti faccio una storia?”',
     peso: 1,
+    dopo: ['piazzetta', 'social'],
     condizione: (s) => figosita(s) >= 50,
     scelte: [{ label: 'Vai, taggami!', esito: (s) => outcome(s, 'Cento nuovi follower in un’ora. Ora sei VIP.', { figo: 10 }) }],
   },
@@ -293,6 +300,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Brutta aria al parchetto',
     testo: () => 'Quelli del quartiere vicino vogliono il tuo posto sulla panchina.',
     peso: 2,
+    dopo: ['piazzetta', 'sala_giochi'],
     scelte: [
       {
         label: 'Tengo il punto',
@@ -312,6 +320,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Il motorino non parte',
     testo: () => 'Giri la chiave, spingi la pedalina… niente. Tossisce e muore.',
     peso: 3,
+    dopo: ['uscite', 'lavoro'],
     condizione: (s) => !!s.motorino && s.motorino.condizione < 60,
     scelte: [
       {
@@ -330,6 +339,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Posto di blocco',
     testo: () => 'Un vigile ti ferma: “Questo motorino fa un po’ troppo rumore, o sbaglio?”',
     peso: 3,
+    dopo: ['uscite'],
     condizione: (s) => !!s.motorino?.truccato,
     scelte: [
       { label: 'Pago la multa (80€)', esito: (s) => outcome(s, 'Multa da 80€. E il vigile ti ha pure fatto la predica.', { soldi: -80, genitori: -5 }) },
@@ -386,6 +396,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Scenata di gelosia',
     testo: (s) => `${s.partner?.nome} ha visto che hai messo like a una foto. “E questa persona chi è?!”`,
     peso: 2,
+    dopo: ['social', 'chatta_partner', 'disco'],
     condizione: (s) => !!s.partner,
     scelte: [
       { label: 'Chiedo scusa', esito: (s) => outcome(conAffetto(s, 5), 'Scuse accettate. Per ora.', { figo: -1 }) },
@@ -459,6 +470,7 @@ export const EVENTS: GameEvent[] = [
     titolo: 'Turno extra',
     testo: (s) => `Ti chiama il capo di ${LAVORI_BY_ID[s.lavoro!.id].nome}: “Mi manca gente, domani puoi fare un turno doppio?”`,
     peso: 2,
+    dopo: ['turno'],
     condizione: (s) => !!s.lavoro,
     scelte: [
       {
@@ -478,6 +490,89 @@ export const EVENTS: GameEvent[] = [
             ? outcome({ ...s, lavoro: null }, '“Allora non serve che torni.” Licenziamento in tronco!', { figo: -2 })
             : outcome(s, '“Va bene, sarà per un’altra volta.”'),
       },
+    ],
+  },
+
+  // ---------------------------------------------------------------- Solo di giorno
+  {
+    id: 'prof_telefono',
+    emoji: '📵',
+    titolo: 'Beccato col telefono',
+    testo: () => 'Il prof si ferma accanto al tuo banco: “Cos’hai lì sotto?” Il telefono è ancora acceso.',
+    peso: 3,
+    dopo: ['scuola_segui', 'scuola_dormi'],
+    soloGiorno: true,
+    condizione: hasTelefono,
+    scelte: [
+      { label: 'Lo consegno', esito: (s) => outcome(s, 'Telefono sequestrato fino all’ultima ora. Che agonia.', { genitori: -2 }) },
+      {
+        label: 'È la calcolatrice!',
+        esito: (s, rng) =>
+          chance(rng, 0.3)
+            ? outcome(s, 'Il prof ci crede. La classe trattiene le risate.', { figo: 3 })
+            : outcome(s, '“Una calcolatrice con le storie?” Nota sul registro.', { genitori: -10, figo: 1 }),
+      },
+    ],
+  },
+  {
+    id: 'cliente_furioso',
+    emoji: '😡',
+    titolo: 'Cliente furioso',
+    testo: () => 'Un cliente sbraita: “È mezz’ora che aspetto! Voglio parlare col responsabile!”',
+    peso: 3,
+    dopo: ['turno'],
+    soloGiorno: true,
+    condizione: (s) => !!s.lavoro,
+    scelte: [
+      {
+        label: 'Sorrido e chiedo scusa',
+        esito: (s, rng) =>
+          chance(rng, 0.5)
+            ? outcome(s, 'Si calma e ti lascia pure 5€ di mancia. Professionalità.', { soldi: 5 })
+            : outcome(s, 'Se ne va lo stesso sbattendo la porta. Pazienza.', { energia: -10 }),
+      },
+      {
+        label: 'Gli rispondo per le rime',
+        esito: (s, rng) =>
+          chance(rng, 0.4)
+            ? outcome({ ...s, lavoro: null }, `Il capo ha sentito tutto. Sei ${g(s, 'licenziato', 'licenziata')}!`, { figo: 2 })
+            : outcome(s, 'I colleghi ti applaudono di nascosto. Leggenda.', { figo: 4 }),
+      },
+    ],
+  },
+  {
+    id: 'prive',
+    emoji: '🥂',
+    titolo: 'Invito nel privé',
+    testo: () => 'Il PR della disco ti indica: “Tu, sì, tu. Vieni nel privé.”',
+    peso: 3,
+    dopo: ['disco'],
+    soloGiorno: true,
+    condizione: (s) => figosita(s) >= 40,
+    scelte: [
+      { label: 'Andiamo!', esito: (s) => outcome(s, 'Divanetti, luci e la gente che ti guarda da sotto. Serata da VIP.', { figo: 6, energia: -10 }) },
+      { label: 'Resto con la compagnia', esito: (s) => outcome(s, 'La compagnia apprezza: “Tu sì che sei vero.”', { figo: 2 }) },
+    ],
+  },
+  {
+    id: 'prestito',
+    emoji: '🤝',
+    titolo: 'Il Bomber chiede un prestito',
+    testo: () => '“Fratè, mi presti 20€? Te li ridò sabato, giuro.”',
+    peso: 2,
+    dopo: ['piazzetta', 'sala_giochi'],
+    soloGiorno: true,
+    scelte: [
+      {
+        label: 'Ecco i 20€',
+        esito: (s, rng) => {
+          if (s.soldi < 20) return outcome(s, 'Non li hai nemmeno tu. Vi guardate e ridete.');
+          return chance(rng, 0.5)
+            ? outcome(s, 'Miracolo: te li ridà subito, con un gelato di interessi.', { energia: 10, figo: 2 })
+            : outcome(s, 'I 20€ spariscono nel nulla. Ma il Bomber ora ti deve un favore.', { soldi: -20, figo: 3 });
+        },
+      },
+      { label: 'Sono al verde', esito: (s) => outcome(s, '“Va be’, chiedo a un altro.” Un po’ di gelo.', { figo: -1 }) },
     ],
   },
 ];

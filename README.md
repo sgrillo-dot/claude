@@ -12,7 +12,7 @@ Un anno scolastico per diventare il più figo del quartiere. Gioco mobile per iO
 - Trova qualcuno con cui metterti insieme, e non trascurarlo, altrimenti ti molla. Con il telefono puoi scrivergli.
 - Lavoretti al volo o un **lavoro fisso**, che paga di più ma va fatto almeno una volta a settimana.
 - Il lunedì arriva la paghetta, a Natale i regali dei parenti, a fine gennaio la pagella del quadrimestre.
-- La notte possono capitare **eventi casuali** con scelte da fare.
+- **Imprevisti** con scelte da fare: di notte, e anche di giorno in base a quello che fai (interrogazioni in classe, risse in piazzetta, clienti furiosi al lavoro…). Il pallino sulla scheda "Tu" segnala le novità nel diario.
 - A giugno arriva la pagella finale: promosso, con debito o bocciato. Oltre 50 assenze si boccia.
 
 ## Provarlo sul telefono
